@@ -1,0 +1,10 @@
+{
+  "modelVersion": "6.1.1",
+  "name": "10_tabssh_harmonyos",
+  "version": "0.1.0",
+  "description": "OpenTabSsh HarmonyOS ArkTS + Native C++ SSH client starter project",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {},
+  "overrides": {}
+}

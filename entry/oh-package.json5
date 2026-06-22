@@ -1,0 +1,10 @@
+{
+  "modelVersion": "6.1.1",
+  "name": "entry",
+  "version": "0.1.0",
+  "description": "OpenTabSsh entry module",
+  "main": "index.ets",
+  "author": "OpenTabSsh",
+  "license": "MIT",
+  "dependencies": {}
+}

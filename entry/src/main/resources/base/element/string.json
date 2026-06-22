@@ -1,0 +1,8 @@
+{
+  "string": [
+    { "name": "app_name", "value": "OpenTabSsh" },
+    { "name": "module_desc", "value": "OpenTabSsh SSH client" },
+    { "name": "EntryAbility_desc", "value": "OpenTabSsh main ability" },
+    { "name": "permission_internet_reason", "value": "用于连接 SSH/SFTP 服务器" }
+  ]
+}
