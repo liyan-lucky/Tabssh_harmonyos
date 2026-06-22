@@ -10,7 +10,6 @@ namespace opentabssh {
 namespace {
 
 struct SessionState {
-    std::string profileJson;
     bool connected = false;
 };
 
@@ -66,11 +65,21 @@ std::string Version()
     return "OpenTabSsh Native Core 0.1.0 / mock-build / ABI-ready";
 }
 
-std::string CreateSession(const std::string& profileJson)
+void SecureClear(std::string& value)
+{
+    volatile char* data = value.empty() ? nullptr : &value[0];
+    for (size_t i = 0; i < value.size(); ++i) {
+        data[i] = 0;
+    }
+    value.clear();
+}
+
+std::string CreateSession(std::string profileJson)
 {
     std::string id = NextId("session");
+    SecureClear(profileJson);
     std::lock_guard<std::mutex> lock(g_mutex);
-    g_sessions[id] = SessionState{profileJson, false};
+    g_sessions[id] = SessionState{false};
     return id;
 }
 
@@ -83,6 +92,15 @@ NativeResult Connect(const std::string& sessionId)
     }
     it->second.connected = true;
     return {true, 0, "mock connected", sessionId};
+}
+
+NativeResult ConfirmHostKey(const std::string& sessionId, const std::string& fingerprint)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_sessions.find(sessionId) == g_sessions.end()) {
+        return {false, 404, "session not found", ""};
+    }
+    return {false, 501, "Mock Core has no SSH host key to confirm", fingerprint};
 }
 
 std::string OpenShell(const std::string& sessionId)

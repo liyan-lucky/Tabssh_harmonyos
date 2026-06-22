@@ -1,10 +1,18 @@
+param(
+  [string]$ReportPath = ""
+)
+
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$reportPath = Join-Path $projectRoot "reports\project_audit_latest.md"
+if ([string]::IsNullOrWhiteSpace($ReportPath)) {
+  $ReportPath = Join-Path $projectRoot "reports\project_audit_latest.md"
+}
+$reportPath = [IO.Path]::GetFullPath($ReportPath)
 $required = @(
   "README.md", "README_zh.md", "CHANGELOG.md", "LICENSE.md", "docs\README.md", "docs\AGENT_HANDOFF.md",
   "docs\WORKSPACE_PATHS.md", "docs\BUILD_TEST.md", "docs\CORE.md", "docs\PROGRESS.md", "docs\NEW_CHAT_PROMPT.md",
   "scripts\stage_project_for_build.ps1", "scripts\build_mock_hap.ps1", "scripts\verify_mock_hap.ps1",
+  "scripts\build_native_dependencies.ps1", "scripts\build_real_hap.ps1", "scripts\verify_real_hap.ps1",
   "scripts\clean_project.ps1", "scripts\backup_project.ps1"
 )
 $checks = @()
@@ -16,6 +24,9 @@ $profile = Get-Content -LiteralPath (Join-Path $projectRoot "build-profile.json5
 $entryProfile = Get-Content -LiteralPath (Join-Path $projectRoot "entry\build-profile.json5") -Raw
 $cmake = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\CMakeLists.txt") -Raw
 $repository = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\common\storage\ProfileRepository.ets") -Raw
+$nativeHeader = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\native_ssh_core.h") -Raw
+$realCore = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\native_ssh_libssh2.cpp") -Raw
+$terminalPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\TerminalPage.ets") -Raw
 $forbiddenDemoPassword = "demo.password = " + "'password'"
 $allDocs = (Get-ChildItem -LiteralPath $projectRoot -Filter *.md -File -Recurse | Get-Content -Raw) -join "`n"
 $readmes = (Get-Content -LiteralPath (Join-Path $projectRoot "README.md") -Raw) + "`n" +
@@ -26,6 +37,9 @@ $checks += @(
   [PSCustomObject]@{ Name = "abi-arm64"; Pass = $entryProfile.Contains('"arm64-v8a"') },
   [PSCustomObject]@{ Name = "abi-x86_64"; Pass = $entryProfile.Contains('"x86_64"') },
   [PSCustomObject]@{ Name = "mock-explicit"; Pass = $cmake.Contains("native_ssh_mock.cpp") },
+  [PSCustomObject]@{ Name = "real-core-explicit"; Pass = $cmake.Contains("native_ssh_libssh2.cpp") },
+  [PSCustomObject]@{ Name = "hostkey-contract"; Pass = $nativeHeader.Contains("ConfirmHostKey") -and $realCore.Contains("kHostKeyChanged") },
+  [PSCustomObject]@{ Name = "hostkey-ui-warning"; Pass = $terminalPage.Contains("服务器 HostKey 已变化") },
   [PSCustomObject]@{ Name = "no-demo-password"; Pass = -not $repository.Contains($forbiddenDemoPassword) },
   [PSCustomObject]@{ Name = "no-old-bundle-readme"; Pass = -not $readmes.Contains("io.github.opentabssh") },
   [PSCustomObject]@{ Name = "temp-rule"; Pass = $allDocs.Contains("99_Temp") },

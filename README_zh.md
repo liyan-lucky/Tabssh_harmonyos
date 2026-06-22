@@ -21,7 +21,7 @@
 2. Native C++ N-API：
    - `version()`
    - `createSession()`
-   - `connect()`
+   - `connect()` / `confirmHostKey()`
    - `openShell()`
    - `write()`
    - `read()`
@@ -37,7 +37,7 @@
 3. 默认 Mock SSH Core：
    - 不依赖 libssh2，可以先直接构建测试。
    - Terminal 页面输入 `pwd`、`whoami`、`ls`、`echo xxx` 会得到 mock 输出。
-   - SFTP 和端口转发页面会走 native mock 函数。
+   - SFTP 明示 Mock；端口转发不会再显示 Mock 成功。
 
 4. 真实 libssh2 接入文件和说明：
    - `entry/src/main/cpp/native_ssh_libssh2.cpp`
@@ -57,11 +57,11 @@
 
 1. 先确认 Mock 版本能构建运行。
 2. 编译 `openssl + zlib + libssh2` 的 HarmonyOS 目标库。
-3. 替换 CMake，启用 `OPEN_TAB_SSH_ENABLE_LIBSSH2`。
+3. 用 `scripts\build_real_hap.ps1` 在仓库外 stage 自动启用真实 Core。
 4. 实现 password 登录。
 5. 实现 shell channel 读写。
 6. 实现 PTY resize。
-7. 实现 HostKey 验证。
+7. 验证 HostKey 未知/变化阻断与显式确认（源码已编码，待真实证据）。
 8. 实现 private key 登录。
 9. 实现 SFTP。
 10. 实现 local/remote/dynamic forwarding。

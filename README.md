@@ -4,12 +4,12 @@ OpenTabSsh 是面向 HarmonyOS 的原生 SSH 客户端工程，使用 ArkTS/ArkU
 
 ## 当前边界
 
-- 已有：首页、连接编辑、Mock 终端、Mock SFTP、Mock 本地转发、设置和关于页面。
-- 已有：arm64-v8a/x86_64 Native C++ 构建配置与 14 个 N-API 接口。
-- 未完成：libssh2/OpenSSL/zlib、真实认证和 HostKey、终端模拟器、真实 SFTP、端口转发、持久化、密钥安全与完整会话清理。
+- 已有：首页、连接编辑、明确标识的 Mock fallback、基础 ANSI/VT 网格、SFTP/转发占位、设置和关于页面。
+- 已编码待验证：固定版本双架构依赖脚本、真实 libssh2 Core、HostKey 阻断/确认、密码/私钥认证、PTY shell 与 SFTP list。
+- 未完成：真实依赖/HAP 端到端证据、完整 xterm、SFTP 写操作、三类转发、持久化、HUKS/ASSET、重连和 Android 全功能矩阵。
 - 凭据只能在测试运行内存中使用，禁止写入源码、日志、文档、截图、备份说明或提交说明。
 
-2026-06-22 Mock 基线已在 `99_Temp` 成功构建：unsigned HAP `3,048,665` bytes，SHA256 `49CDE90FDD94C0623FF7A65107C112E519C9B732DA0842FC40288D6386471829`，包内含 arm64-v8a/x86_64 的 `libentry.so` 与 `libc++_shared.so`。该结果只证明工程和 Mock Native 双 ABI 可编译。
+2026-06-22 02:34 Mock fallback 在 `99_Temp` 构建并覆盖安装到 x86_64 模拟器：unsigned HAP `3,099,325` bytes，SHA256 `1CF2D83204AE61D10B08C1C003D9C90CE0E78807A59C7CB885F1A4C2D7C478AB`，双 ABI native entries 通过验证。该结果只证明 Mock fallback 的编译、安装、冷启动和无凭据 UI 冒烟。
 
 ## 接手入口
 

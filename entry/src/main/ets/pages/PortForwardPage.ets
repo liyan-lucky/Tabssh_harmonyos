@@ -1,7 +1,4 @@
 import router from '@ohos.router';
-import { ProfileRepository } from '../common/storage/ProfileRepository';
-import { ConnectionProfile } from '../common/models/ConnectionProfile';
-import { NativeSshCore } from '../common/native/NativeSshCore';
 
 @Entry
 @Component
@@ -12,15 +9,7 @@ struct PortForwardPage {
   @State remotePort: string = '80';
 
   startLocalForward(): void {
-    const profiles: ConnectionProfile[] = ProfileRepository.list();
-    if (profiles.length === 0) {
-      this.status = '没有连接配置';
-      return;
-    }
-    const sessionId: string = NativeSshCore.createSession(profiles[0]);
-    NativeSshCore.connect(sessionId);
-    const forwardId: string = NativeSshCore.addLocalForward(sessionId, Number(this.localPort), this.remoteHost, Number(this.remotePort));
-    this.status = '已创建本地转发：' + forwardId + '  127.0.0.1:' + this.localPort + ' → ' + this.remoteHost + ':' + this.remotePort;
+    this.status = '尚未实现真实流量链路：不会创建 Mock 转发。完成 local/remote/dynamic worker 与流量验证后才会启用。';
   }
 
   build() {
@@ -54,7 +43,7 @@ struct PortForwardPage {
           .type(InputType.Number)
           .onChange((value: string) => this.remotePort = value)
           .margin({ bottom: 10 })
-        Button('启动本地转发')
+        Button('本地转发开发中')
           .width('100%')
           .onClick(() => this.startLocalForward())
       }

@@ -1,31 +1,45 @@
 import router from '@ohos.router';
-import { ProfileRepository } from '../common/storage/ProfileRepository';
-import { ConnectionProfile } from '../common/models/ConnectionProfile';
 import { NativeSshCore } from '../common/native/NativeSshCore';
-import { SftpEntry } from '../common/models/TerminalModels';
+import { SftpEntry, TerminalTab } from '../common/models/TerminalModels';
+import { TerminalSessionManager } from '../common/services/TerminalSessionManager';
 
 @Entry
 @Component
 struct SftpPage {
   @State entries: SftpEntry[] = [];
   @State currentPath: string = '/';
-  @State status: string = 'SFTP Mock 列表，可替换为 libssh2_sftp 实现';
+  @State status: string = '需要一个已认证的 SSH 会话';
+  @State tabId: string = '';
 
   aboutToAppear(): void {
+    const params = router.getParams() as Record<string, string>;
+    if (params !== undefined && params['tabId'] !== undefined) {
+      this.tabId = params['tabId'];
+    }
     this.loadList('/');
   }
 
-  loadList(path: string): void {
-    const profiles: ConnectionProfile[] = ProfileRepository.list();
-    if (profiles.length === 0) {
-      this.status = '没有连接配置';
+  async loadList(path: string): Promise<void> {
+    let active: TerminalTab | undefined = undefined;
+    if (this.tabId.length > 0) {
+      active = TerminalSessionManager.getTab(this.tabId);
+    }
+    if (active === undefined) {
+      active = TerminalSessionManager.listTabs().find((tab: TerminalTab) => tab.connected);
+    }
+    if (active === undefined) {
+      this.status = '请先打开终端并完成 HostKey 核对与 SSH 认证';
       return;
     }
-    const sessionId: string = NativeSshCore.createSession(profiles[0]);
-    NativeSshCore.connect(sessionId);
     this.currentPath = path;
-    this.entries = NativeSshCore.sftpList(sessionId, path);
-    NativeSshCore.disconnect(sessionId);
+    this.status = '正在读取 SFTP 目录…';
+    try {
+      this.entries = await NativeSshCore.sftpList(active.sessionId, path);
+      this.status = NativeSshCore.version().indexOf('mock') >= 0 ? 'SFTP Mock 列表（非真实文件）' : '真实 SFTP 目录';
+    } catch (error) {
+      this.entries = [];
+      this.status = 'SFTP 目录读取失败';
+    }
   }
 
   build() {
@@ -72,6 +86,11 @@ struct SftpPage {
             .width('100%')
             .backgroundColor('#172033')
             .borderRadius(12)
+            .onClick(() => {
+              if (entry.type === 'dir') {
+                this.loadList(entry.path);
+              }
+            })
           }
           .margin({ left: 16, right: 16, bottom: 10 })
         }, (entry: SftpEntry) => entry.path)

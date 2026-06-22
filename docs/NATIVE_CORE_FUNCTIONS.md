@@ -17,6 +17,7 @@ import nativeSsh from 'libentry.so';
 | `version()` | 无 | `string` | 返回 native core 版本 |
 | `createSession(profileJson)` | 连接配置 JSON | `sessionId` | 创建 SSH session 对象 |
 | `connect(sessionId)` | sessionId | JSON string | 连接服务器 |
+| `confirmHostKey(sessionId, fingerprint)` | 会话与本次观察到的 SHA256 指纹 | JSON string | 仅在 UI 显式核对后允许继续认证；Mock 返回 501 |
 | `openShell(sessionId)` | sessionId | `channelId` | 打开 shell/PTY channel |
 | `write(channelId, data)` | channelId + 文本 | JSON string | 写入终端输入 |
 | `read(channelId)` | channelId | JSON string | 读取终端输出 |
@@ -39,6 +40,8 @@ import nativeSsh from 'libentry.so';
   "data": "terminal output"
 }
 ```
+
+真实 Core 的安全状态码：`1001` 未知 HostKey、`1002` HostKey 变化/确认不匹配、`1003` 认证失败、`1004` 超时、`1005` profile 无效、`1006` 未认证。`connect()` 遇到 `1001/1002` 不执行用户认证；ArkTS 必须展示算法与 SHA256 指纹，再调用 `confirmHostKey()` 并重新 `connect()`。
 
 ## 对应 Android TabSSH 功能
 

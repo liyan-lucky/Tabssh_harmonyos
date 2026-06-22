@@ -38,6 +38,13 @@ class MemoryProfileRepository {
   remove(id: string): void {
     this.profiles = this.profiles.filter((item: ConnectionProfile) => item.id !== id);
   }
+
+  clearSensitiveFields(): void {
+    this.profiles.forEach((item: ConnectionProfile) => {
+      item.password = '';
+      item.privateKeyPassphrase = '';
+    });
+  }
 }
 
 export const ProfileRepository: MemoryProfileRepository = new MemoryProfileRepository();

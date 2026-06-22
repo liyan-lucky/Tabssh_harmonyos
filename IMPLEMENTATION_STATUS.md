@@ -9,20 +9,28 @@
 - 新建/编辑连接
 - 打开 Terminal 页面
 - Terminal 输入 mock 命令
-- 打开 SFTP mock 列表
-- 创建端口转发 mock 记录
+- 打开 SFTP mock 列表（明确标识）
+- 查看端口转发开发中提示（不会创建 Mock 成功记录）
 - 查看 native version
+- 在 x86_64 模拟器验证基础 ANSI/VT 网格和 Mock `pwd` 输出
+
+## 已编码、尚不能标记完成
+
+- 双架构固定依赖构建/manifest/真实 HAP 脚本
+- libssh2 非阻塞握手、HostKey、密码/私钥认证、PTY、SFTP list、清理
+- HostKey 首次信任与变化警告 UI
+- 基础 ANSI/VT 网格和控制键（不是完整 xterm）
+- `connect`、`openShell`、`sftpList` N-API async work / Promise（已构建，尚待设备回归）
 
 ## 尚未实现，不能标记完成
 
-- 真正 SSH 网络连接
-- libssh2/OpenSSL/zlib HarmonyOS so 编译
+- HostKey/认证/PTY 的真实服务器成功证据
 - HostKey 持久化
 - 真实终端模拟器
 - 真实 SFTP 上传下载
 - 真实端口转发
 - 本地数据库持久化与安全凭据存储
-- 非阻塞 I/O、重连、超时和断开清理
+- write/resize/close/disconnect 异步化、真实服务器证据、异步取消、重连和全部断开清理路径
 - arm64 真机与 x86_64 模拟器的真实 SSH 端到端验证
 
 ## 验收规则

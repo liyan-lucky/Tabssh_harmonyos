@@ -31,12 +31,16 @@ export class NativeSshCore {
     return nativeSsh.createSession(JSON.stringify(profile));
   }
 
-  static connect(sessionId: string): NativeJsonResult {
-    return parseResult(nativeSsh.connect(sessionId));
+  static async connect(sessionId: string): Promise<NativeJsonResult> {
+    return parseResult(await nativeSsh.connect(sessionId));
   }
 
-  static openShell(sessionId: string): string {
-    return nativeSsh.openShell(sessionId);
+  static confirmHostKey(sessionId: string, fingerprint: string): NativeJsonResult {
+    return parseResult(nativeSsh.confirmHostKey(sessionId, fingerprint));
+  }
+
+  static async openShell(sessionId: string): Promise<string> {
+    return await nativeSsh.openShell(sessionId);
   }
 
   static write(channelId: string, text: string): NativeJsonResult {
@@ -59,8 +63,8 @@ export class NativeSshCore {
     return parseResult(nativeSsh.disconnect(sessionId));
   }
 
-  static sftpList(sessionId: string, path: string): SftpEntry[] {
-    const result: NativeJsonResult = parseResult(nativeSsh.sftpList(sessionId, path));
+  static async sftpList(sessionId: string, path: string): Promise<SftpEntry[]> {
+    const result: NativeJsonResult = parseResult(await nativeSsh.sftpList(sessionId, path));
     if (!result.ok || result.data.length === 0) {
       return [];
     }

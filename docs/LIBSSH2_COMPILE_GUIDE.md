@@ -1,136 +1,49 @@
-# libssh2 接入和编译指导
+# libssh2 / OpenSSL / zlib 双架构构建
 
-> 2026-06-22 路径修订：三方源码、build、日志与生成 `.so` 不放仓库，统一使用 `%VSCODE_ROOT%\99_Temp\tabssh_harmonyos_dependencies`。下文仓库内 `third_party` 路径只表示构建 stage 的临时组装结构。当前 ABI 是 arm64-v8a 与 x86_64，不再以 armeabi-v7a 作为本项目目标。
+> 当前状态：脚本和真实 Core 源码已进入仓库，但双 ABI 依赖产物与真实 HAP 尚未完成本机验证。只有 `verify_real_hap.ps1` 和真实服务器端到端证据通过后，才能标记真实能力完成。
 
-当前工程默认使用 `native_ssh_mock.cpp`，可以不带任何三方库直接构建。真实 SSH 需要把 `libssh2`、`openssl`、`zlib` 编译为 HarmonyOS/OpenHarmony 目标 so 后链接进 `entry` native 模块。
+## 固定来源
 
-## 一、目录建议
+| 组件 | 固定版本 | 完整性依据 |
+|---|---|---|
+| libssh2 | `1.11.1` | tag `libssh2-1.11.1`，commit `a312b43325e3383c865a87bb1d26cb52e3292641` |
+| OpenSSL | `3.5.7 LTS` | tag `openssl-3.5.7`，commit `8cf17aaeb4599f8af87fefd810b5b5fee90fe69e` |
+| zlib | `1.3.2` | 源码包 SHA256 `BB329A0A2CD0274D05519D61C667C062E06990D72E125EE2DFA8DE64F0119D16` |
 
-最终建议目录：
+源码、下载、build、install 和 `manifest.json` 只进入 `%VSCODE_ROOT%\99_Temp\tabssh_harmonyos_dependencies`。仓库不提交生成的头文件、`.a`、`.so` 或 SDK。
 
-```text
-entry/src/main/cpp/third_party/
-├── libssh2/
-│   ├── include/
-│   └── libs/
-│       ├── arm64-v8a/libssh2.so
-│       └── x86_64/libssh2.so
-├── openssl/
-│   ├── include/
-│   └── libs/
-│       ├── arm64-v8a/libssl.so
-│       ├── arm64-v8a/libcrypto.so
-│       ├── x86_64/libssl.so
-│       └── x86_64/libcrypto.so
-└── zlib/
-    ├── include/
-    └── libs/
-        ├── arm64-v8a/libz.so
-        └── x86_64/libz.so
+## 本机构建
+
+前提：DevEco Studio/OpenHarmony Native SDK、完整 MSYS2 Perl/make、Git。默认 SDK 路径是 `C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\native`，可用 `HARMONYOS_NATIVE_SDK` 覆盖。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_native_dependencies.ps1
 ```
 
-## 二、编译准备
+脚本对 `arm64-v8a` 与 `x86_64` 执行：
 
-安装 DevEco Studio，并确认本机有 HarmonyOS/OpenHarmony Native SDK。不同 DevEco 版本 SDK 路径略有不同，你需要在本机找到类似目录：
+1. 校验固定源码 commit/压缩包 SHA256。
+2. 用 OHOS clang/CMake 构建静态 zlib。
+3. 用 `clang --target=<triple>` 构建 OpenSSL 静态 `libcrypto.a` / `libssl.a`。
+4. 用 OpenSSL + zlib 构建静态 `libssh2.a`。
+5. 为每个 `.a` 记录大小与 SHA256 到依赖区 `manifest.json`。
 
-```bash
-# 示例，按你电脑实际路径修改
-export OHOS_NDK_HOME=/path/to/HarmonyOS/Sdk/default/openharmony/native
+`-Rebuild` 只清理该依赖目录下六个明确的 ABI/component build/install 路径；发现 APK 会拒绝清理。
+
+## 真实 HAP
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_real_hap.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_real_hap.ps1
 ```
 
-常见工具链文件位置类似：
+`build_real_hap.ps1` 先创建仓库外干净 stage，复核 manifest 中每个库的 SHA256，再把双 ABI 头文件/静态库复制到 stage 的 `entry/src/main/cpp/third_party`。CMake 仅在当前 ABI 所需文件全部存在时编译 `native_ssh_libssh2.cpp`；普通源码 checkout 明确回退 `native_ssh_mock.cpp`。
 
-```bash
-$OHOS_NDK_HOME/build/cmake/ohos.toolchain.cmake
-```
+最终三方库静态链接进每个 ABI 的 `libentry.so`，不会向仓库写入机器生成二进制。真实产物名为 `entry-default-unsigned-real.hap`；它仍是 unsigned 开发包，不是正式发布资产。
 
-## 三、编译 zlib / OpenSSL / libssh2 思路
+## 验收边界
 
-libssh2 依赖加密库，建议选择 OpenSSL 后端。编译顺序：
-
-```text
-zlib → OpenSSL → libssh2
-```
-
-如果你已经有 HarmonyOS 可用的 `libssl.so`、`libcrypto.so`、`libz.so`，可以跳过前两步。
-
-## 四、libssh2 CMake 示例
-
-下面是示例命令，实际参数要按你下载的 libssh2 源码版本和 SDK 路径调整：
-
-```bash
-export OHOS_NDK_HOME=/path/to/HarmonyOS/Sdk/default/openharmony/native
-export TOOLCHAIN=$OHOS_NDK_HOME/build/cmake/ohos.toolchain.cmake
-
-cmake -S ./libssh2 -B ./build-libssh2-arm64 \
-  -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
-  -DOHOS_ARCH=arm64-v8a \
-  -DBUILD_SHARED_LIBS=ON \
-  -DBUILD_EXAMPLES=OFF \
-  -DBUILD_TESTING=OFF \
-  -DCRYPTO_BACKEND=OpenSSL \
-  -DOPENSSL_ROOT_DIR=/absolute/path/to/openssl-ohos-arm64 \
-  -DZLIB_ROOT=/absolute/path/to/zlib-ohos-arm64
-
-cmake --build ./build-libssh2-arm64 --config Release
-```
-
-生成后，把 `libssh2.so` 和头文件复制到：
-
-```text
-entry/src/main/cpp/third_party/libssh2/include
-entry/src/main/cpp/third_party/libssh2/libs/arm64-v8a/libssh2.so
-```
-
-## 五、切换 CMake
-
-打开：
-
-```text
-entry/src/main/cpp/CMakeLists.txt
-```
-
-把：
-
-```cmake
-add_library(entry SHARED
-    napi_init.cpp
-    native_ssh_mock.cpp
-)
-```
-
-改成：
-
-```cmake
-add_library(entry SHARED
-    napi_init.cpp
-    native_ssh_libssh2.cpp
-)
-
-target_compile_definitions(entry PRIVATE OPEN_TAB_SSH_ENABLE_LIBSSH2=1)
-```
-
-然后放开文件里的三方 include 和 so 链接配置。
-
-## 六、真实 SSH 实现顺序
-
-建议不要一次性做完所有功能，按下面顺序加：
-
-1. socket connect：`host:port`
-2. `libssh2_session_init_ex`
-3. `libssh2_session_handshake`
-4. HostKey fingerprint 获取
-5. password auth：`libssh2_userauth_password`
-6. shell channel：`libssh2_channel_open_session`
-7. PTY：`libssh2_channel_request_pty_ex`
-8. shell：`libssh2_channel_shell`
-9. write：`libssh2_channel_write`
-10. read：`libssh2_channel_read`
-11. resize：`libssh2_channel_request_pty_size_ex`
-12. private key auth：`libssh2_userauth_publickey_fromfile_ex`
-13. SFTP：`libssh2_sftp_init`、`libssh2_sftp_opendir`、`libssh2_sftp_readdir`
-14. forwarding：`libssh2_channel_direct_tcpip_ex` / listener API
-
-## 七、为什么默认不直接带 libssh2
-
-因为 libssh2 不是 HarmonyOS SDK 自带库，不同 DevEco Studio、HarmonyOS NEXT/OpenHarmony SDK、CPU ABI 路径差异较大。直接把未编译的外部依赖写死进工程，会导致你导入就构建失败。所以本包默认用 mock native core，让页面、路由、N-API、CMake 先跑通；然后你再按本机 SDK 编译 libssh2 接入。
+- `verify_real_hap.ps1` 检查双 ABI ELF machine、`real-ssh/libssh2` marker，并拒绝含 Mock shell marker 的“真实”包。
+- HostKey 必须先显示 SHA256 指纹；未知和变更状态必须阻断认证，用户显式核对后才能继续。
+- 密码、私钥口令和测试凭据不得进入命令行、日志、文档、截图或 manifest。
+- shell/PTY、SFTP、转发、重连和清理分别需要真实服务器输出、文件哈希、流量与资源证据；验包本身不代表功能完成。

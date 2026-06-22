@@ -14,8 +14,9 @@ struct NativeResult {
 };
 
 std::string Version();
-std::string CreateSession(const std::string& profileJson);
+std::string CreateSession(std::string profileJson);
 NativeResult Connect(const std::string& sessionId);
+NativeResult ConfirmHostKey(const std::string& sessionId, const std::string& fingerprint);
 std::string OpenShell(const std::string& sessionId);
 NativeResult Write(const std::string& channelId, const std::string& data);
 NativeResult Read(const std::string& channelId);

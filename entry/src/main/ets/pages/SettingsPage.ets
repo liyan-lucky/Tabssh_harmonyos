@@ -5,9 +5,13 @@ import { NativeSshCore } from '../common/native/NativeSshCore';
 @Component
 struct SettingsPage {
   @State nativeVersion: string = '';
+  @State coreDescription: string = '';
 
   aboutToAppear(): void {
     this.nativeVersion = NativeSshCore.version();
+    this.coreDescription = this.nativeVersion.indexOf('real-ssh') >= 0 ?
+      '当前包已加载真实 libssh2 Core。HostKey、认证、shell、SFTP 和转发仍分别以端到端证据为准。' :
+      '当前包使用明确的 Mock fallback，仅用于 UI/N-API 构建验证，不进行 SSH 网络连接。';
   }
 
   build() {
@@ -34,7 +38,7 @@ struct SettingsPage {
           .fontSize(13)
           .margin({ top: 8 })
           .width('100%')
-        Text('当前包默认使用 Mock Native Core，保证项目可先导入和构建。真实 SSH 实现请按 docs/LIBSSH2_COMPILE_GUIDE.md 编译 libssh2 后切换 CMake。')
+        Text(this.coreDescription)
           .fontColor('#94A3B8')
           .fontSize(13)
           .margin({ top: 10 })

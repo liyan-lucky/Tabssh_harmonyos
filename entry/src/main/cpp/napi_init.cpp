@@ -2,7 +2,9 @@
 #include "napi/native_api.h"
 
 #include <cstdint>
+#include <exception>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -30,6 +32,89 @@ napi_value MakeString(napi_env env, const std::string& value)
     return result;
 }
 
+enum class AsyncOperation {
+    CONNECT,
+    OPEN_SHELL,
+    SFTP_LIST
+};
+
+struct AsyncContext {
+    napi_env env = nullptr;
+    napi_async_work work = nullptr;
+    napi_deferred deferred = nullptr;
+    AsyncOperation operation = AsyncOperation::CONNECT;
+    std::string first;
+    std::string second;
+    std::string result;
+    bool failed = false;
+};
+
+void ExecuteAsync(napi_env, void* rawContext)
+{
+    auto* context = static_cast<AsyncContext*>(rawContext);
+    try {
+        switch (context->operation) {
+            case AsyncOperation::CONNECT:
+                context->result = opentabssh::ToJson(opentabssh::Connect(context->first));
+                break;
+            case AsyncOperation::OPEN_SHELL:
+                context->result = opentabssh::OpenShell(context->first);
+                break;
+            case AsyncOperation::SFTP_LIST:
+                context->result = opentabssh::ToJson(opentabssh::SftpList(context->first, context->second));
+                break;
+        }
+    } catch (const std::exception&) {
+        context->failed = true;
+        context->result = "native async operation failed";
+    } catch (...) {
+        context->failed = true;
+        context->result = "native async operation failed";
+    }
+}
+
+void CompleteAsync(napi_env env, napi_status status, void* rawContext)
+{
+    auto* context = static_cast<AsyncContext*>(rawContext);
+    if (status == napi_ok && !context->failed) {
+        napi_resolve_deferred(env, context->deferred, MakeString(env, context->result));
+    } else {
+        napi_value message = MakeString(env, context->result.empty() ? "native async work failed" : context->result);
+        napi_value error = nullptr;
+        napi_create_error(env, nullptr, message, &error);
+        napi_reject_deferred(env, context->deferred, error);
+    }
+    napi_delete_async_work(env, context->work);
+    delete context;
+}
+
+napi_value QueueAsync(napi_env env, AsyncOperation operation, std::string first, std::string second = "")
+{
+    auto* context = new AsyncContext();
+    context->env = env;
+    context->operation = operation;
+    context->first = std::move(first);
+    context->second = std::move(second);
+
+    napi_value promise = nullptr;
+    if (napi_create_promise(env, &context->deferred, &promise) != napi_ok) {
+        delete context;
+        return nullptr;
+    }
+    napi_value resourceName = MakeString(env, "OpenTabSshNativeAsync");
+    napi_status createStatus = napi_create_async_work(env, nullptr, resourceName, ExecuteAsync, CompleteAsync,
+        context, &context->work);
+    if (createStatus != napi_ok || napi_queue_async_work(env, context->work) != napi_ok) {
+        napi_value message = MakeString(env, "failed to queue native async work");
+        napi_value error = nullptr;
+        napi_create_error(env, nullptr, message, &error);
+        napi_reject_deferred(env, context->deferred, error);
+        if (context->work != nullptr) napi_delete_async_work(env, context->work);
+        delete context;
+    }
+    return promise;
+}
+
 napi_value Version(napi_env env, napi_callback_info info)
 {
     return MakeString(env, opentabssh::Version());
@@ -41,7 +126,7 @@ napi_value CreateSession(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string profileJson = argc > 0 ? GetStringArg(env, args[0]) : "{}";
-    return MakeString(env, opentabssh::CreateSession(profileJson));
+    return MakeString(env, opentabssh::CreateSession(std::move(profileJson)));
 }
 
 napi_value Connect(napi_env env, napi_callback_info info)
@@ -50,7 +135,7 @@ napi_value Connect(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
-    return MakeString(env, opentabssh::ToJson(opentabssh::Connect(sessionId)));
+    return QueueAsync(env, AsyncOperation::CONNECT, std::move(sessionId));
 }
 
 napi_value OpenShell(napi_env env, napi_callback_info info)
@@ -59,7 +144,17 @@ napi_value OpenShell(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
-    return MakeString(env, opentabssh::OpenShell(sessionId));
+    return QueueAsync(env, AsyncOperation::OPEN_SHELL, std::move(sessionId));
+}
+
+napi_value ConfirmHostKey(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value args[2] = {nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string fingerprint = argc > 1 ? GetStringArg(env, args[1]) : "";
+    return MakeString(env, opentabssh::ToJson(opentabssh::ConfirmHostKey(sessionId, fingerprint)));
 }
 
 napi_value Write(napi_env env, napi_callback_info info)
@@ -117,7 +212,7 @@ napi_value SftpList(napi_env env, napi_callback_info info)
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
     std::string path = argc > 1 ? GetStringArg(env, args[1]) : "/";
-    return MakeString(env, opentabssh::ToJson(opentabssh::SftpList(sessionId, path)));
+    return QueueAsync(env, AsyncOperation::SFTP_LIST, std::move(sessionId), std::move(path));
 }
 
 napi_value AddLocalForward(napi_env env, napi_callback_info info)
@@ -169,6 +264,7 @@ napi_value Init(napi_env env, napi_value exports)
         {"version", nullptr, Version, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"createSession", nullptr, CreateSession, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"connect", nullptr, Connect, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"confirmHostKey", nullptr, ConfirmHostKey, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"openShell", nullptr, OpenShell, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"write", nullptr, Write, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"read", nullptr, Read, nullptr, nullptr, nullptr, napi_default, nullptr},

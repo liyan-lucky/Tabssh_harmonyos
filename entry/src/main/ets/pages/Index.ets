@@ -51,6 +51,10 @@ struct Index {
     this.nativeVersion = NativeSshCore.version();
   }
 
+  onPageShow(): void {
+    this.reload();
+  }
+
   reload(): void {
     this.profiles = ProfileRepository.list();
   }
