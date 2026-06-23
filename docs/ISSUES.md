@@ -2,9 +2,13 @@
 
 ## P0：真实 SSH 端到端尚未通过
 
-源码 checkout 没有生成的三方静态库时，CMake 明确编译 `native_ssh_mock.cpp`。固定三方库和真实 Core 双 ABI HAP 已完成构建、链接、验包和 x86_64 冷启动，但真实服务器连接/认证尚未通过，不能用于生产。端口转发 UI 已禁用 Mock 成功提示。
+源码 checkout 没有生成的三方静态库时，CMake 明确编译 `native_ssh_mock.cpp`。固定三方库和真实 Core 双 ABI HAP 已完成构建、链接、验包和 x86_64 冷启动，密码认证/PTY/SFTP 已有端到端证据；私钥、arm64 真机和端口转发仍阻塞生产使用。端口转发 UI 已禁用 Mock 成功提示。
 
-2026-06-22 首次真实连接暴露同步 N-API 主线程卡死，系统以 `APP_INPUT_BLOCK` 终止进程。`connect`、`openShell`、`sftpList` 已改为后台 async work 并编译通过，但暂停前未安装回归；write/resize/close/disconnect 的最坏阻塞和异步取消仍需继续审计。
+2026-06-22 首次真实连接暴露同步 N-API 主线程卡死，系统以 `APP_INPUT_BLOCK` 终止进程。现有网络与 SFTP 操作均已迁移到后台 async work，x86_64 模拟器没有新增 faultlogger 记录；用户取消正在进行的 native async work 仍需实现。
+
+read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 Windows OpenSSH 完成命令、SFTP、关闭和再次连接回归；已知旧 appfreeze 没有复现。尚未实现用户取消正在进行的 native async work，极端慢服务器下的任务终止仍是风险。
+
+2026-06-22 SFTP 系统文档选择器的“保存”界面在当前 x86_64 自动化模拟器上出现 Promise 未返回且界面未显示；已通过应用私有缓存中的受限文本上传→下载回读完成核心数据校验，但系统保存选择器还需真机手工验证和取消/超时处理。
 
 ## P0：凭据与 HostKey 安全
 

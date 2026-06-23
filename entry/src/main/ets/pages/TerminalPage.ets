@@ -18,6 +18,8 @@ struct TerminalPage {
   private emulator: TerminalEmulator = new TerminalEmulator(80, 24);
   private consumedLength: number = 0;
   private pollTimer: number = -1;
+  private pollInFlight: boolean = false;
+  private writeInFlight: boolean = false;
   private preserveSessionOnNavigation: boolean = false;
 
   aboutToAppear(): void {
@@ -89,13 +91,23 @@ struct TerminalPage {
     }
   }
 
-  pollOutput(): void {
-    if (this.tabId.length === 0) {
+  async pollOutput(): Promise<void> {
+    if (this.tabId.length === 0 || this.pollInFlight) {
       return;
     }
-    const updated: TerminalTab | undefined = TerminalSessionManager.poll(this.tabId);
-    if (updated !== undefined) {
-      this.updateFromTab(updated);
+    const requestedTabId: string = this.tabId;
+    this.pollInFlight = true;
+    try {
+      const updated: TerminalTab | undefined = await TerminalSessionManager.poll(requestedTabId);
+      if (updated !== undefined && this.tabId === requestedTabId) {
+        this.updateFromTab(updated);
+      }
+    } catch (error) {
+      if (this.tabId === requestedTabId) {
+        this.status = '终端读取异常';
+      }
+    } finally {
+      this.pollInFlight = false;
     }
   }
 
@@ -162,21 +174,41 @@ struct TerminalPage {
     }
   }
 
-  sendCommand(): void {
-    if (this.command.trim().length === 0) {
+  async sendCommand(): Promise<void> {
+    if (this.command.trim().length === 0 || this.writeInFlight) {
       return;
     }
-    const updated: TerminalTab | undefined = TerminalSessionManager.write(this.tabId, this.command);
-    if (updated !== undefined) {
-      this.updateFromTab(updated);
-    }
+    const command: string = this.command;
+    const requestedTabId: string = this.tabId;
     this.command = '';
+    this.writeInFlight = true;
+    try {
+      const updated: TerminalTab | undefined = await TerminalSessionManager.write(requestedTabId, command);
+      if (updated !== undefined && this.tabId === requestedTabId) {
+        this.updateFromTab(updated);
+      }
+    } catch (error) {
+      this.status = '终端写入异常';
+    } finally {
+      this.writeInFlight = false;
+    }
   }
 
-  sendControl(sequence: string): void {
-    const updated: TerminalTab | undefined = TerminalSessionManager.writeRaw(this.tabId, sequence);
-    if (updated !== undefined) {
-      this.updateFromTab(updated);
+  async sendControl(sequence: string): Promise<void> {
+    if (this.writeInFlight) {
+      return;
+    }
+    const requestedTabId: string = this.tabId;
+    this.writeInFlight = true;
+    try {
+      const updated: TerminalTab | undefined = await TerminalSessionManager.writeRaw(requestedTabId, sequence);
+      if (updated !== undefined && this.tabId === requestedTabId) {
+        this.updateFromTab(updated);
+      }
+    } catch (error) {
+      this.status = '控制键发送异常';
+    } finally {
+      this.writeInFlight = false;
     }
   }
 

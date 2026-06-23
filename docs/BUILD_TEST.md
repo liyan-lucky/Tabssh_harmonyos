@@ -24,6 +24,33 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 随后已把 `connect`、`openShell` 和 `sftpList` N-API 改为后台 async work / Promise，并让 Terminal 页面先渲染“正在连接”状态后异步等待 HostKey。暂停前 Mock HAP 已构建成功（`3,128,166` bytes / SHA256 `7059161CD44D54210B11DE66512BF4258A034B2690F1BBBA1FDF61852E5AE95F`）；真实 HAP 已构建并通过双 ABI real-marker/machine 验证（`11,587,958` bytes / SHA256 `4C6FDDBCF104BC926C2870D1BFB5AEEDD5AB476C26CB34294477EC64880E7A80`，arm64 native SHA256 `CFE61E49666FDE1C442BD47C316F14E60E24B554F0FB8AA0CFDA72EC64B39E67`，x86_64 native SHA256 `8E83489C6DBC242F64A5908AB157DD195381CA6A8183BE592B1611C8197252B6`）。应用户关机请求，此包尚未安装，异步连接修复尚未取得设备回归证据。
 
+2026-06-22 恢复测试后，上述 SHA256 `4C6FDDBCF104BC926C2870D1BFB5AEEDD5AB476C26CB34294477EC64880E7A80` 的真实 HAP 已成功覆盖安装到 `127.0.0.1:5555` x86_64 模拟器，Bundle 版本 `0.1.0`、`updateTime=1782151379401`。本条只证明异步修复包安装成功；HostKey、认证、PTY、SFTP 与无 appfreeze 回归须由后续步骤分别取证。
+
+同一异步 HAP 随后完成本机隔离测试端的真实 SSH 流量回归。测试端仅绑定宿主机回环，由 HDC reverse 暴露给模拟器；RSA HostKey 在测试进程内生成，密码只由进程环境和应用运行内存持有，均未写入仓库、测试日志或 UI 层级文件。验证结果：
+
+- 点击连接后 1.5 秒内 Terminal 页面已显示“正在连接并校验 HostKey”，主进程持续响应，证明耗时握手没有继续阻塞 ArkUI 主线程。
+- 首次连接返回 `1001` 并显示算法/指纹核对对话框；显式信任后密码认证成功，状态为“SSH 已认证 / PTY 已打开”。
+- 真实 SSH channel 收到测试端 banner；发送测试命令后，预期标记由远端经加密 channel 返回并进入终端网格。
+- 重启测试端生成新 HostKey 后，客户端返回 `1002` 并显示高风险“HostKey 已变化”警告；显式替换后重新认证和 PTY 打开成功。
+- 同一已认证 session 打开真实 SFTP 子系统，根目录列出 `documents` 目录与 `welcome.txt`（18 bytes），证明不是 Mock SFTP 返回。
+- 回归结束时 `com.open.tabssh` 进程仍存活；faultlogger 中只有异步修复前的那一条 `APP_INPUT_BLOCK`，没有新增 appfreeze/cppcrash/jscrash。
+
+该证据验证本机回环上的真实 SSH 协议和 libssh2 数据路径，但临时测试端的 shell 是受限验收端，不等同于任意生产服务器。用户提供的外部 IPv6 可由模拟器 ping 通，但宿主机 TCP/22 也不可达，因此本次不能宣称公网服务器、arm64 真机或复杂网络条件验收完成。
+
+2026-06-22 将 read/write/resize/closeChannel/disconnect 一并迁移到 N-API async work / Promise，并为终端 read/write 增加单次在途保护后完成全量重建：Mock HAP `3,134,727` bytes / SHA256 `CDBDF475C9162D5C08BBCB8FCC898C41604129B6B994687F15FBD7293BE72D12`；真实 HAP `11,594,519` bytes / SHA256 `26BC17D44E24986006EAB13BCC2EEBF3F521DFB73C8BF5260C8F0057D4C0CC6F`。arm64 native SHA256 `348135107DC96F315D0DC5110E2E8CC322ADBF3C120F422710173D38D66210E6`，x86_64 native SHA256 `FF0873BD6C7AAB28608013215D4D342CCAB498D9E39F406A4C36A62BE7A5C890`；双 ABI real marker/machine 通过。该真实 HAP 已成功覆盖安装到 x86_64 模拟器，`updateTime=1782152252857`；相关流量与清理回归仍需随后取证。
+
+外部 IPv6 的 TCP/22 恢复后，客户端已取得真实公网 HostKey（ECDSA）、密码认证和 Windows OpenSSH PTY banner。首次发送命令只在远端提示符回显但未执行，定位为 Windows PTY 需要 CR 而客户端发送 LF；提交终止符改为 `\r` 后重新构建的真实 HAP 为 `11,594,519` bytes / SHA256 `6DB07DB21303EA29FBCA24B9FD17953A04CE5B49BF4BEAB929825D1D6FD3ED20`，双 ABI native 哈希保持不变，并已成功覆盖安装，`updateTime=1782152525374`。公网命令执行与 SFTP 仍须用此哈希复测后才能标记通过。
+
+SHA256 `6DB07DB21303EA29FBCA24B9FD17953A04CE5B49BF4BEAB929825D1D6FD3ED20` 的公网复测随后通过：首次 ECDSA HostKey 阻断/确认、密码认证、Windows OpenSSH PTY banner、命令回显与独立远端输出均进入终端网格；同一 session 的 SFTP 页面显示真实状态并返回 4 个远端条目（证据采集只记录数量，不保存文件名）。从 SFTP 返回后关闭会话，350 ms 内回到连接列表且进程 PID 保持；再次连接同一 profile 时直接认证/打开 PTY，没有重复 HostKey 首次提示，证明已信任指纹的 session 重建路径可用。结束时 faultlogger 仍只有异步修复前的旧 `APP_INPUT_BLOCK`，无新增 appfreeze/cppcrash/jscrash。测试地址、用户名和密码均未写入本文件或构建/测试日志。
+
+2026-06-22 19:30（Europe/Berlin）参照 RustDesk HarmonyOS 底部导航样式完成四标签悬浮胶囊底栏，使用仓库内 SVG 图标、半透明 Thin blur、圆角、边框、轻阴影和底部安全区适配。Mock HAP 为 `3,142,255` bytes / SHA256 `0B2A06D4268F4FFE3FEF5D032BACC72809D25F96BA5880852AAB3C55F1698FC8`；真实 HAP 为 `11,597,503` bytes / SHA256 `237DF2E7A0DBD04139CD6F2CBFE23B91E7EA72119EEC37A58B783F94D276EF62`，双 ABI marker/machine 复验通过。真实 HAP 已成功覆盖安装到 x86_64 模拟器；UI hierarchy 显示底栏为 56 vp 高、左右约 16 vp、底部约 8 vp，“工作台 / 连接 / 监控 / 我的”四项均可点击切换，进程保持存活。
+
+2026-06-22 19:38（Europe/Berlin）继续完成四张参考图对应的连接入口、设备监控空状态、我的/设置分组和系统设置二级页，并将主要菜单选项从 92 vp 压缩到 54–62 vp。Mock HAP 为 `3,217,733` bytes / SHA256 `C9DBDD9D911C60D9677AB2BB315EED7FAF96AE5565004D30C01AE78CD9E43975`；真实 HAP 为 `11,672,981` bytes / SHA256 `9B4415C64E885E0EF96C89D354785835BB27E6C262D6D21C92970BBE241B23CB`，双 ABI 真实 Core 验包通过并已覆盖安装到 x86_64 模拟器。UI hierarchy 逐页验证了连接方式/SFTP/局域网/本地终端入口、监控空状态、终端/系统/关于设置卡片，以及语言、主题、字号、文件管理和缓存选项；进程 PID 在页面切换后保持存活。局域网发现、本地 shell、实际自动保存/压缩等未完成能力在 UI 中继续明确标识，没有伪造成功结果。
+
+2026-06-22 20:15（Europe/Berlin）完成真实 SFTP 写操作阶段回归。最终 Mock HAP 为 `3,292,642` bytes / SHA256 `2C0950D4AEC0A0265D04E7B19406F22F11DF49F283BB74D4C83ECAACA40C11CB`；真实 HAP 为 `11,822,274` bytes / SHA256 `4E3195BF26531FD4377C6F8D6261C6B2E460E9CF890266595079578586219CEB`，arm64 native SHA256 `D0B8E0AF09729F4013D46B418E8DDF68FAF4CFB4BD544EE2605BB22FF6F20B60`、x86_64 native SHA256 `360D226AB9CD237E4C8A28539D3FED3E7B55E2523EB9C20287BB859D1F9769A5`，双 ABI real marker/machine 验包通过，并已覆盖安装到 x86_64 模拟器。
+
+隔离验收端仅绑定宿主机回环，HostKey 与文件系统均在测试进程内生成，凭据仅存在环境变量和应用运行内存。真实 libssh2/N-API 路径完成：建目录；小文本上传后再下载到应用私有缓存并逐字节一致；重命名；chmod 为 `0644`；删除文件和空目录。最终哈希安装后又复验了密码认证、PTY 与上传→下载回读一致，进程保持存活。系统文档“保存”选择器在当前自动化模拟器上出现界面未显示且 Promise 未返回，未写成通过；需在真机手工验证取消、覆盖与大文件保存。
+
 ## 设备验证
 
 未来真实 Core HAP 必须分别安装到 arm64 真机和 x86_64 模拟器，核对 SHA256、mtime、版本、双 ABI、设备 `updateTime`、冷启动 PID 和安全筛选后的 hilog；正式发布仍必须使用独立签名。测试凭据只在运行内存输入；不保存原始含敏感字段日志。

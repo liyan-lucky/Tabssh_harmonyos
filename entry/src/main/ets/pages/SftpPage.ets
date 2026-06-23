@@ -1,5 +1,9 @@
 import router from '@ohos.router';
-import { NativeSshCore } from '../common/native/NativeSshCore';
+import promptAction from '@ohos.promptAction';
+import picker from '@ohos.file.picker';
+import fs from '@ohos.file.fs';
+import common from '@ohos.app.ability.common';
+import { NativeJsonResult, NativeSshCore } from '../common/native/NativeSshCore';
 import { SftpEntry, TerminalTab } from '../common/models/TerminalModels';
 import { TerminalSessionManager } from '../common/services/TerminalSessionManager';
 
@@ -10,6 +14,21 @@ struct SftpPage {
   @State currentPath: string = '/';
   @State status: string = '需要一个已认证的 SSH 会话';
   @State tabId: string = '';
+  @State uploadName: string = 'upload.bin';
+  @State folderName: string = 'new-folder';
+  @State textFileName: string = 'roundtrip.txt';
+  @State textContent: string = 'OpenTabSsh SFTP verification';
+  @State selectedPath: string = '';
+  @State selectedName: string = '';
+  @State selectedType: string = '';
+  @State renameName: string = '';
+  @State modeText: string = '644';
+  @State busy: boolean = false;
+
+  private readonly accentColor: string = '#0A84FF';
+  private readonly pageBg: string = '#F3F7FF';
+  private readonly textPrimary: string = '#111827';
+  private readonly textSecond: string = '#7B8491';
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -19,14 +38,49 @@ struct SftpPage {
     this.loadList('/');
   }
 
-  async loadList(path: string): Promise<void> {
-    let active: TerminalTab | undefined = undefined;
+  onPageShow(): void {
+    this.busy = false;
+  }
+
+  private activeTab(): TerminalTab | undefined {
     if (this.tabId.length > 0) {
-      active = TerminalSessionManager.getTab(this.tabId);
+      const exact: TerminalTab | undefined = TerminalSessionManager.getTab(this.tabId);
+      if (exact !== undefined) {
+        return exact;
+      }
     }
-    if (active === undefined) {
-      active = TerminalSessionManager.listTabs().find((tab: TerminalTab) => tab.connected);
+    return TerminalSessionManager.listTabs().find((tab: TerminalTab) => tab.connected);
+  }
+
+  private validName(name: string): boolean {
+    const trimmed: string = name.trim();
+    return trimmed.length > 0 && trimmed !== '.' && trimmed !== '..' && trimmed.indexOf('/') < 0 &&
+      trimmed.indexOf('\\') < 0;
+  }
+
+  private childPath(name: string): string {
+    return (this.currentPath === '/' ? '/' : this.currentPath + '/') + name.trim();
+  }
+
+  private clearSelection(): void {
+    this.selectedPath = '';
+    this.selectedName = '';
+    this.selectedType = '';
+    this.renameName = '';
+  }
+
+  private async applyResult(result: NativeJsonResult, successMessage: string): Promise<void> {
+    if (!result.ok) {
+      this.status = '操作失败：' + result.message;
+      return;
     }
+    this.clearSelection();
+    await this.loadList(this.currentPath);
+    this.status = successMessage;
+  }
+
+  async loadList(path: string): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
     if (active === undefined) {
       this.status = '请先打开终端并完成 HostKey 核对与 SSH 认证';
       return;
@@ -35,70 +89,311 @@ struct SftpPage {
     this.status = '正在读取 SFTP 目录…';
     try {
       this.entries = await NativeSshCore.sftpList(active.sessionId, path);
-      this.status = NativeSshCore.version().indexOf('mock') >= 0 ? 'SFTP Mock 列表（非真实文件）' : '真实 SFTP 目录';
+      this.status = NativeSshCore.version().indexOf('mock') >= 0 ? 'SFTP Mock 已禁用真实文件操作' : '真实 SFTP 目录';
     } catch (error) {
       this.entries = [];
       this.status = 'SFTP 目录读取失败';
     }
   }
 
+  async upload(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy) return;
+    if (!this.validName(this.uploadName)) {
+      this.status = '请输入不含路径分隔符的上传文件名';
+      return;
+    }
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    let cachePath: string = '';
+    this.busy = true;
+    try {
+      const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+      const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
+      options.maxSelectNumber = 1;
+      const selectedUris: Array<string> = await documentPicker.select(options);
+      if (selectedUris.length === 0) return;
+      cachePath = context.cacheDir + '/sftp_upload_' + Date.now().toString();
+      const source: fs.File = fs.openSync(selectedUris[0], fs.OpenMode.READ_ONLY);
+      try {
+        fs.copyFileSync(source.fd, cachePath);
+      } finally {
+        fs.closeSync(source);
+      }
+      this.status = '正在上传…';
+      const result: NativeJsonResult = await NativeSshCore.sftpUpload(active.sessionId, cachePath,
+        this.childPath(this.uploadName));
+      await this.applyResult(result, '上传完成，已刷新目录');
+    } catch (error) {
+      this.status = '上传失败或已取消';
+    } finally {
+      if (cachePath.length > 0 && fs.accessSync(cachePath)) {
+        fs.unlinkSync(cachePath);
+      }
+      this.busy = false;
+    }
+  }
+
+  async downloadSelected(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy || this.selectedType !== 'file') return;
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    let cachePath: string = '';
+    this.busy = true;
+    try {
+      const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+      const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+      options.newFileNames = [this.selectedName];
+      const destinationUris: Array<string> = await documentPicker.save(options);
+      if (destinationUris.length === 0) return;
+      cachePath = context.cacheDir + '/sftp_download_' + Date.now().toString();
+      this.status = '正在下载…';
+      const result: NativeJsonResult = await NativeSshCore.sftpDownload(active.sessionId, this.selectedPath, cachePath);
+      if (!result.ok) {
+        this.status = '下载失败：' + result.message;
+        return;
+      }
+      const destination: fs.File = fs.openSync(destinationUris[0], fs.OpenMode.WRITE_ONLY);
+      try {
+        fs.copyFileSync(cachePath, destination.fd);
+      } finally {
+        fs.closeSync(destination);
+      }
+      this.status = '下载完成，已保存到选定位置';
+    } catch (error) {
+      this.status = '下载失败或已取消';
+    } finally {
+      if (cachePath.length > 0 && fs.accessSync(cachePath)) {
+        fs.unlinkSync(cachePath);
+      }
+      this.busy = false;
+    }
+  }
+
+  async createDirectory(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy) return;
+    if (!this.validName(this.folderName)) {
+      this.status = '请输入有效的目录名';
+      return;
+    }
+    this.busy = true;
+    try {
+      const result: NativeJsonResult = await NativeSshCore.sftpMkdir(active.sessionId, this.childPath(this.folderName));
+      await this.applyResult(result, '目录已创建');
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async createTextAndVerify(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy) return;
+    if (!this.validName(this.textFileName) || this.textContent.length === 0 || this.textContent.length > 4096) {
+      this.status = '文件名必须有效，文本内容限 1–4096 字符';
+      return;
+    }
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const token: string = Date.now().toString();
+    const sourcePath: string = context.cacheDir + '/sftp_text_source_' + token;
+    const verifyPath: string = context.cacheDir + '/sftp_text_verify_' + token;
+    this.busy = true;
+    try {
+      const source: fs.File = fs.openSync(sourcePath,
+        fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      try {
+        fs.writeSync(source.fd, this.textContent);
+      } finally {
+        fs.closeSync(source);
+      }
+      this.status = '正在写入并回读校验…';
+      const remotePath: string = this.childPath(this.textFileName);
+      const uploadResult: NativeJsonResult = await NativeSshCore.sftpUpload(active.sessionId, sourcePath, remotePath);
+      if (!uploadResult.ok) {
+        this.status = '新建远端文本失败：' + uploadResult.message;
+        return;
+      }
+      const downloadResult: NativeJsonResult = await NativeSshCore.sftpDownload(active.sessionId, remotePath, verifyPath);
+      if (!downloadResult.ok) {
+        this.status = '远端文本回读失败：' + downloadResult.message;
+        return;
+      }
+      const received: string = fs.readTextSync(verifyPath);
+      if (received !== this.textContent) {
+        this.status = '远端文本回读内容不一致';
+        return;
+      }
+      await this.loadList(this.currentPath);
+      this.status = '新建、上传与回读校验完成';
+    } catch (error) {
+      this.status = '新建远端文本异常';
+    } finally {
+      if (fs.accessSync(sourcePath)) fs.unlinkSync(sourcePath);
+      if (fs.accessSync(verifyPath)) fs.unlinkSync(verifyPath);
+      this.busy = false;
+    }
+  }
+
+  async renameSelected(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy || this.selectedPath.length === 0) return;
+    if (!this.validName(this.renameName)) {
+      this.status = '请输入有效的新名称';
+      return;
+    }
+    this.busy = true;
+    try {
+      const result: NativeJsonResult = await NativeSshCore.sftpRename(active.sessionId, this.selectedPath,
+        this.childPath(this.renameName));
+      await this.applyResult(result, '重命名完成');
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async removeSelected(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy || this.selectedPath.length === 0) return;
+    const choice = await promptAction.showDialog({
+      title: '确认删除',
+      message: '将永久删除选中的远端项目，此操作无法撤销。',
+      buttons: [{ text: '删除', color: '#D92D20' }, { text: '取消', color: '#64748B' }]
+    });
+    if (choice.index !== 0) return;
+    this.busy = true;
+    try {
+      const result: NativeJsonResult = await NativeSshCore.sftpRemove(active.sessionId, this.selectedPath,
+        this.selectedType === 'dir');
+      await this.applyResult(result, '远端项目已删除');
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async chmodSelected(): Promise<void> {
+    const active: TerminalTab | undefined = this.activeTab();
+    if (active === undefined || this.busy || this.selectedPath.length === 0) return;
+    if (!/^[0-7]{3,4}$/.test(this.modeText)) {
+      this.status = '权限必须是 3 或 4 位八进制数字';
+      return;
+    }
+    this.busy = true;
+    try {
+      const result: NativeJsonResult = await NativeSshCore.sftpChmod(active.sessionId, this.selectedPath,
+        parseInt(this.modeText, 8));
+      await this.applyResult(result, '权限已更新');
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private selectEntry(entry: SftpEntry): void {
+    this.selectedPath = entry.path;
+    this.selectedName = entry.name;
+    this.selectedType = entry.type;
+    this.renameName = entry.name;
+  }
+
   build() {
     Column() {
       Row() {
-        Button('返回').onClick(() => router.back())
-        Text('SFTP 文件')
-          .fontSize(22)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Color.White)
-          .margin({ left: 12 })
+        Text('‹').fontSize(34).fontColor(this.textPrimary).width(44).onClick(() => router.back())
+        Text('SFTP 文件').fontSize(22).fontWeight(FontWeight.Bold).fontColor(this.textPrimary)
+          .layoutWeight(1).textAlign(TextAlign.Center)
+        Text('↻').fontSize(24).fontColor(this.accentColor).width(44).textAlign(TextAlign.End)
+          .onClick(() => this.loadList(this.currentPath))
       }
-      .padding(16)
-      .width('100%')
+      .width('100%').height(64).padding({ left: 14, right: 14, top: 8 })
 
       Text(this.status)
-        .fontColor('#94A3B8')
-        .fontSize(13)
-        .padding({ left: 16, right: 16, bottom: 8 })
+        .fontColor(this.textSecond).fontSize(12).width('92%').maxLines(2)
 
-      Text('当前路径：' + this.currentPath)
-        .fontColor('#38BDF8')
-        .fontSize(13)
-        .padding({ left: 16, right: 16, bottom: 8 })
+      Row({ space: 8 }) {
+        Button('上级').height(36).fontSize(13).enabled(this.currentPath !== '/' && !this.busy)
+          .onClick(() => {
+            const cut: number = this.currentPath.lastIndexOf('/');
+            this.loadList(cut <= 0 ? '/' : this.currentPath.substring(0, cut));
+          })
+        Text(this.currentPath).fontColor(this.accentColor).fontSize(13).layoutWeight(1).maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .width('92%').height(42)
+
+      Row({ space: 8 }) {
+        TextInput({ text: this.uploadName, placeholder: '上传文件名' })
+          .height(40).fontSize(13).layoutWeight(1).onChange((value: string) => this.uploadName = value)
+        Button('选择并上传').height(40).fontSize(13).enabled(!this.busy).onClick(() => this.upload())
+      }
+      .width('92%').margin({ bottom: 8 })
+
+      Row({ space: 8 }) {
+        TextInput({ text: this.folderName, placeholder: '新目录名' })
+          .height(40).fontSize(13).layoutWeight(1).onChange((value: string) => this.folderName = value)
+        Button('建目录').height(40).fontSize(13).enabled(!this.busy).onClick(() => this.createDirectory())
+      }
+      .width('92%').margin({ bottom: 8 })
+
+      Row({ space: 8 }) {
+        TextInput({ text: this.textFileName, placeholder: '文本文件名' })
+          .height(40).fontSize(13).width(220).onChange((value: string) => this.textFileName = value)
+        TextInput({ text: this.textContent, placeholder: '文本内容（最大 4KB）' })
+          .height(40).fontSize(13).layoutWeight(1).onChange((value: string) => this.textContent = value)
+        Button('新建并校验').height(40).fontSize(12).enabled(!this.busy)
+          .onClick(() => this.createTextAndVerify())
+      }
+      .width('92%').margin({ bottom: 8 })
+
+      if (this.selectedPath.length > 0) {
+        Column({ space: 7 }) {
+          Text('已选：' + this.selectedName).fontSize(13).fontColor(this.textPrimary).width('100%').maxLines(1)
+          Row({ space: 7 }) {
+            TextInput({ text: this.renameName, placeholder: '新名称' }).height(36).fontSize(12).layoutWeight(1)
+              .onChange((value: string) => this.renameName = value)
+            Button('改名').height(36).fontSize(12).enabled(!this.busy).onClick(() => this.renameSelected())
+            if (this.selectedType === 'file') {
+              Button('下载').height(36).fontSize(12).enabled(!this.busy).onClick(() => this.downloadSelected())
+            }
+          }
+          Row({ space: 7 }) {
+            TextInput({ text: this.modeText, placeholder: '644' }).height(36).fontSize(12).width(88)
+              .type(InputType.Number).onChange((value: string) => this.modeText = value)
+            Button('权限').height(36).fontSize(12).enabled(!this.busy).onClick(() => this.chmodSelected())
+            Button('删除').height(36).fontSize(12).enabled(!this.busy).backgroundColor('#D92D20')
+              .onClick(() => this.removeSelected())
+            Blank()
+            Button('取消选择').height(36).fontSize(12).onClick(() => this.clearSelection())
+          }
+        }
+        .width('92%').padding(10).backgroundColor(Color.White).borderRadius(14).margin({ bottom: 8 })
+      }
 
       List() {
         ForEach(this.entries, (entry: SftpEntry) => {
           ListItem() {
             Row() {
-              Text(entry.type === 'dir' ? '📁' : '📄')
-                .fontSize(20)
-              Column() {
-                Text(entry.name)
-                  .fontColor(Color.White)
-                  .fontSize(16)
-                Text(entry.path + '  ' + entry.size.toString() + ' bytes')
-                  .fontColor('#94A3B8')
-                  .fontSize(12)
-                  .margin({ top: 4 })
+              Text(entry.type === 'dir' ? '📁' : '📄').fontSize(20)
+              Column({ space: 2 }) {
+                Text(entry.name).fontColor(this.textPrimary).fontSize(15).maxLines(1)
+                Text(entry.size.toString() + ' bytes').fontColor(this.textSecond).fontSize(11)
               }
-              .margin({ left: 10 })
+              .margin({ left: 10 }).alignItems(HorizontalAlign.Start).layoutWeight(1)
+              Text(entry.type === 'dir' ? '›' : '⋯').fontSize(25).fontColor('#94A3B8').width(38)
+                .textAlign(TextAlign.Center).onClick(() => this.selectEntry(entry))
             }
-            .padding(14)
-            .width('100%')
-            .backgroundColor('#172033')
-            .borderRadius(12)
+            .padding(10).width('100%').backgroundColor(Color.White).borderRadius(12)
             .onClick(() => {
               if (entry.type === 'dir') {
+                this.clearSelection();
                 this.loadList(entry.path);
+              } else {
+                this.selectEntry(entry);
               }
             })
           }
-          .margin({ left: 16, right: 16, bottom: 10 })
+          .margin({ left: 16, right: 16, bottom: 8 })
         }, (entry: SftpEntry) => entry.path)
       }
-      .layoutWeight(1)
+      .layoutWeight(1).width('100%')
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#0B1020')
+    .width('100%').height('100%').alignItems(HorizontalAlign.Center).backgroundColor(this.pageBg)
   }
 }

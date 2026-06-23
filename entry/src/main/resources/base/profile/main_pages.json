@@ -6,6 +6,7 @@
     "pages/SftpPage",
     "pages/PortForwardPage",
     "pages/SettingsPage",
+    "pages/TerminalSettingsPage",
     "pages/AboutPage"
   ]
 }

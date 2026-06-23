@@ -60,7 +60,8 @@ class TerminalSessionManagerImpl {
     current.statusCode = 0;
     current.statusMessage = 'SSH authenticated and PTY opened';
     current.pendingHostKey = '';
-    current.buffer += NativeSshCore.read(channelId).data;
+    const initialRead: NativeJsonResult = await NativeSshCore.read(channelId);
+    current.buffer += initialRead.data;
     return current;
   }
 
@@ -98,11 +99,11 @@ class TerminalSessionManagerImpl {
     return this.tabs.find((item: TerminalTab) => item.id === tabId);
   }
 
-  write(tabId: string, command: string): TerminalTab | undefined {
-    return this.writeRaw(tabId, command + '\n');
+  async write(tabId: string, command: string): Promise<TerminalTab | undefined> {
+    return await this.writeRaw(tabId, command + '\r');
   }
 
-  writeRaw(tabId: string, data: string): TerminalTab | undefined {
+  async writeRaw(tabId: string, data: string): Promise<TerminalTab | undefined> {
     const tab: TerminalTab | undefined = this.getTab(tabId);
     if (tab === undefined) {
       return undefined;
@@ -110,48 +111,75 @@ class TerminalSessionManagerImpl {
     if (!tab.connected || tab.channelId.length === 0) {
       return tab;
     }
-    NativeSshCore.write(tab.channelId, data);
-    const readResult: NativeJsonResult = NativeSshCore.read(tab.channelId);
-    tab.buffer += readResult.data;
-    return tab;
+    const channelId: string = tab.channelId;
+    const writeResult: NativeJsonResult = await NativeSshCore.write(channelId, data);
+    const current: TerminalTab | undefined = this.getTab(tabId);
+    if (current === undefined || current.channelId !== channelId) {
+      return undefined;
+    }
+    if (!writeResult.ok) {
+      current.statusCode = writeResult.code;
+      current.statusMessage = writeResult.message;
+      return current;
+    }
+    const readResult: NativeJsonResult = await NativeSshCore.read(channelId);
+    const afterRead: TerminalTab | undefined = this.getTab(tabId);
+    if (afterRead !== undefined && afterRead.channelId === channelId && readResult.data.length > 0) {
+      afterRead.buffer += readResult.data;
+    }
+    return afterRead;
   }
 
-  poll(tabId: string): TerminalTab | undefined {
+  async poll(tabId: string): Promise<TerminalTab | undefined> {
     const tab: TerminalTab | undefined = this.getTab(tabId);
     if (tab === undefined || !tab.connected || tab.channelId.length === 0) {
       return tab;
     }
-    const readResult: NativeJsonResult = NativeSshCore.read(tab.channelId);
-    if (readResult.ok && readResult.data.length > 0) {
-      tab.buffer += readResult.data;
+    const channelId: string = tab.channelId;
+    const readResult: NativeJsonResult = await NativeSshCore.read(channelId);
+    const current: TerminalTab | undefined = this.getTab(tabId);
+    if (current !== undefined && current.channelId === channelId && readResult.ok && readResult.data.length > 0) {
+      current.buffer += readResult.data;
     }
-    return tab;
+    return current;
   }
 
-  resize(tabId: string, cols: number, rows: number): void {
+  async resize(tabId: string, cols: number, rows: number): Promise<void> {
     const tab: TerminalTab | undefined = this.getTab(tabId);
     if (tab === undefined) {
       return;
     }
     tab.cols = cols;
     tab.rows = rows;
-    NativeSshCore.resize(tab.channelId, cols, rows);
+    await NativeSshCore.resize(tab.channelId, cols, rows);
   }
 
-  close(tabId: string): void {
+  async close(tabId: string): Promise<void> {
     const tab: TerminalTab | undefined = this.getTab(tabId);
-    if (tab !== undefined) {
-      if (tab.channelId.length > 0) {
-        NativeSshCore.closeChannel(tab.channelId);
-      }
-      NativeSshCore.disconnect(tab.sessionId);
+    if (tab === undefined) {
+      return;
     }
+    const channelId: string = tab.channelId;
+    const sessionId: string = tab.sessionId;
+    tab.connected = false;
     this.tabs = this.tabs.filter((item: TerminalTab) => item.id !== tabId);
+    if (channelId.length > 0) {
+      try {
+        await NativeSshCore.closeChannel(channelId);
+      } catch (error) {
+      }
+    }
+    try {
+      await NativeSshCore.disconnect(sessionId);
+    } catch (error) {
+    }
   }
 
-  closeAll(): void {
+  async closeAll(): Promise<void> {
     const tabIds: string[] = this.tabs.map((item: TerminalTab) => item.id);
-    tabIds.forEach((tabId: string) => this.close(tabId));
+    for (let index: number = 0; index < tabIds.length; index++) {
+      await this.close(tabIds[index]);
+    }
   }
 }
 

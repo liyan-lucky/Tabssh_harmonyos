@@ -26,7 +26,10 @@ $cmake = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\CM
 $repository = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\common\storage\ProfileRepository.ets") -Raw
 $nativeHeader = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\native_ssh_core.h") -Raw
 $realCore = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\native_ssh_libssh2.cpp") -Raw
+$mockCore = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\native_ssh_mock.cpp") -Raw
+$napi = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\napi_init.cpp") -Raw
 $terminalPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\TerminalPage.ets") -Raw
+$sftpPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\SftpPage.ets") -Raw
 $forbiddenDemoPassword = "demo.password = " + "'password'"
 $allDocs = (Get-ChildItem -LiteralPath $projectRoot -Filter *.md -File -Recurse | Get-Content -Raw) -join "`n"
 $readmes = (Get-Content -LiteralPath (Join-Path $projectRoot "README.md") -Raw) + "`n" +
@@ -40,6 +43,10 @@ $checks += @(
   [PSCustomObject]@{ Name = "real-core-explicit"; Pass = $cmake.Contains("native_ssh_libssh2.cpp") },
   [PSCustomObject]@{ Name = "hostkey-contract"; Pass = $nativeHeader.Contains("ConfirmHostKey") -and $realCore.Contains("kHostKeyChanged") },
   [PSCustomObject]@{ Name = "hostkey-ui-warning"; Pass = $terminalPage.Contains("服务器 HostKey 已变化") },
+  [PSCustomObject]@{ Name = "sftp-write-core"; Pass = $realCore.Contains("SftpUpload") -and $realCore.Contains("SftpDownload") -and $realCore.Contains("SftpRename") -and $realCore.Contains("SftpChmod") },
+  [PSCustomObject]@{ Name = "sftp-write-async-napi"; Pass = $napi.Contains('{"sftpUpload"') -and $napi.Contains('{"sftpDownload"') -and $napi.Contains("AsyncOperation::SFTP_REMOVE") },
+  [PSCustomObject]@{ Name = "sftp-mock-disabled"; Pass = $mockCore.Contains("Mock SFTP upload is disabled") -and $mockCore.Contains("Mock SFTP remove is disabled") },
+  [PSCustomObject]@{ Name = "sftp-private-temp-cleanup"; Pass = $sftpPage.Contains("context.cacheDir") -and $sftpPage.Contains("fs.unlinkSync") },
   [PSCustomObject]@{ Name = "no-demo-password"; Pass = -not $repository.Contains($forbiddenDemoPassword) },
   [PSCustomObject]@{ Name = "no-old-bundle-readme"; Pass = -not $readmes.Contains("io.github.opentabssh") },
   [PSCustomObject]@{ Name = "temp-rule"; Pass = $allDocs.Contains("99_Temp") },

@@ -35,7 +35,18 @@ napi_value MakeString(napi_env env, const std::string& value)
 enum class AsyncOperation {
     CONNECT,
     OPEN_SHELL,
-    SFTP_LIST
+    WRITE,
+    READ,
+    RESIZE,
+    CLOSE_CHANNEL,
+    DISCONNECT,
+    SFTP_LIST,
+    SFTP_UPLOAD,
+    SFTP_DOWNLOAD,
+    SFTP_MKDIR,
+    SFTP_REMOVE,
+    SFTP_RENAME,
+    SFTP_CHMOD
 };
 
 struct AsyncContext {
@@ -45,6 +56,9 @@ struct AsyncContext {
     AsyncOperation operation = AsyncOperation::CONNECT;
     std::string first;
     std::string second;
+    std::string third;
+    int32_t firstNumber = 0;
+    int32_t secondNumber = 0;
     std::string result;
     bool failed = false;
 };
@@ -60,8 +74,47 @@ void ExecuteAsync(napi_env, void* rawContext)
             case AsyncOperation::OPEN_SHELL:
                 context->result = opentabssh::OpenShell(context->first);
                 break;
+            case AsyncOperation::WRITE:
+                context->result = opentabssh::ToJson(opentabssh::Write(context->first, context->second));
+                break;
+            case AsyncOperation::READ:
+                context->result = opentabssh::ToJson(opentabssh::Read(context->first));
+                break;
+            case AsyncOperation::RESIZE:
+                context->result = opentabssh::ToJson(opentabssh::Resize(
+                    context->first, context->firstNumber, context->secondNumber));
+                break;
+            case AsyncOperation::CLOSE_CHANNEL:
+                context->result = opentabssh::ToJson(opentabssh::CloseChannel(context->first));
+                break;
+            case AsyncOperation::DISCONNECT:
+                context->result = opentabssh::ToJson(opentabssh::Disconnect(context->first));
+                break;
             case AsyncOperation::SFTP_LIST:
                 context->result = opentabssh::ToJson(opentabssh::SftpList(context->first, context->second));
+                break;
+            case AsyncOperation::SFTP_UPLOAD:
+                context->result = opentabssh::ToJson(opentabssh::SftpUpload(
+                    context->first, context->second, context->third));
+                break;
+            case AsyncOperation::SFTP_DOWNLOAD:
+                context->result = opentabssh::ToJson(opentabssh::SftpDownload(
+                    context->first, context->second, context->third));
+                break;
+            case AsyncOperation::SFTP_MKDIR:
+                context->result = opentabssh::ToJson(opentabssh::SftpMkdir(context->first, context->second));
+                break;
+            case AsyncOperation::SFTP_REMOVE:
+                context->result = opentabssh::ToJson(opentabssh::SftpRemove(
+                    context->first, context->second, context->firstNumber != 0));
+                break;
+            case AsyncOperation::SFTP_RENAME:
+                context->result = opentabssh::ToJson(opentabssh::SftpRename(
+                    context->first, context->second, context->third));
+                break;
+            case AsyncOperation::SFTP_CHMOD:
+                context->result = opentabssh::ToJson(opentabssh::SftpChmod(
+                    context->first, context->second, context->firstNumber));
                 break;
         }
     } catch (const std::exception&) {
@@ -88,13 +141,17 @@ void CompleteAsync(napi_env env, napi_status status, void* rawContext)
     delete context;
 }
 
-napi_value QueueAsync(napi_env env, AsyncOperation operation, std::string first, std::string second = "")
+napi_value QueueAsync(napi_env env, AsyncOperation operation, std::string first, std::string second = "",
+    std::string third = "", int32_t firstNumber = 0, int32_t secondNumber = 0)
 {
     auto* context = new AsyncContext();
     context->env = env;
     context->operation = operation;
     context->first = std::move(first);
     context->second = std::move(second);
+    context->third = std::move(third);
+    context->firstNumber = firstNumber;
+    context->secondNumber = secondNumber;
 
     napi_value promise = nullptr;
     if (napi_create_promise(env, &context->deferred, &promise) != napi_ok) {
@@ -164,7 +221,7 @@ napi_value Write(napi_env env, napi_callback_info info)
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string channelId = argc > 0 ? GetStringArg(env, args[0]) : "";
     std::string data = argc > 1 ? GetStringArg(env, args[1]) : "";
-    return MakeString(env, opentabssh::ToJson(opentabssh::Write(channelId, data)));
+    return QueueAsync(env, AsyncOperation::WRITE, std::move(channelId), std::move(data));
 }
 
 napi_value Read(napi_env env, napi_callback_info info)
@@ -173,7 +230,7 @@ napi_value Read(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string channelId = argc > 0 ? GetStringArg(env, args[0]) : "";
-    return MakeString(env, opentabssh::ToJson(opentabssh::Read(channelId)));
+    return QueueAsync(env, AsyncOperation::READ, std::move(channelId));
 }
 
 napi_value Resize(napi_env env, napi_callback_info info)
@@ -184,7 +241,7 @@ napi_value Resize(napi_env env, napi_callback_info info)
     std::string channelId = argc > 0 ? GetStringArg(env, args[0]) : "";
     int32_t cols = argc > 1 ? GetIntArg(env, args[1]) : 80;
     int32_t rows = argc > 2 ? GetIntArg(env, args[2]) : 24;
-    return MakeString(env, opentabssh::ToJson(opentabssh::Resize(channelId, cols, rows)));
+    return QueueAsync(env, AsyncOperation::RESIZE, std::move(channelId), "", "", cols, rows);
 }
 
 napi_value CloseChannel(napi_env env, napi_callback_info info)
@@ -193,7 +250,7 @@ napi_value CloseChannel(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string channelId = argc > 0 ? GetStringArg(env, args[0]) : "";
-    return MakeString(env, opentabssh::ToJson(opentabssh::CloseChannel(channelId)));
+    return QueueAsync(env, AsyncOperation::CLOSE_CHANNEL, std::move(channelId));
 }
 
 napi_value Disconnect(napi_env env, napi_callback_info info)
@@ -202,7 +259,7 @@ napi_value Disconnect(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
-    return MakeString(env, opentabssh::ToJson(opentabssh::Disconnect(sessionId)));
+    return QueueAsync(env, AsyncOperation::DISCONNECT, std::move(sessionId));
 }
 
 napi_value SftpList(napi_env env, napi_callback_info info)
@@ -213,6 +270,74 @@ napi_value SftpList(napi_env env, napi_callback_info info)
     std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
     std::string path = argc > 1 ? GetStringArg(env, args[1]) : "/";
     return QueueAsync(env, AsyncOperation::SFTP_LIST, std::move(sessionId), std::move(path));
+}
+
+napi_value SftpUpload(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string localPath = argc > 1 ? GetStringArg(env, args[1]) : "";
+    std::string remotePath = argc > 2 ? GetStringArg(env, args[2]) : "";
+    return QueueAsync(env, AsyncOperation::SFTP_UPLOAD, std::move(sessionId), std::move(localPath),
+        std::move(remotePath));
+}
+
+napi_value SftpDownload(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string remotePath = argc > 1 ? GetStringArg(env, args[1]) : "";
+    std::string localPath = argc > 2 ? GetStringArg(env, args[2]) : "";
+    return QueueAsync(env, AsyncOperation::SFTP_DOWNLOAD, std::move(sessionId), std::move(remotePath),
+        std::move(localPath));
+}
+
+napi_value SftpMkdir(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value args[2] = {nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string path = argc > 1 ? GetStringArg(env, args[1]) : "";
+    return QueueAsync(env, AsyncOperation::SFTP_MKDIR, std::move(sessionId), std::move(path));
+}
+
+napi_value SftpRemove(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string path = argc > 1 ? GetStringArg(env, args[1]) : "";
+    int32_t directory = argc > 2 ? GetIntArg(env, args[2]) : 0;
+    return QueueAsync(env, AsyncOperation::SFTP_REMOVE, std::move(sessionId), std::move(path), "", directory);
+}
+
+napi_value SftpRename(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string sourcePath = argc > 1 ? GetStringArg(env, args[1]) : "";
+    std::string destinationPath = argc > 2 ? GetStringArg(env, args[2]) : "";
+    return QueueAsync(env, AsyncOperation::SFTP_RENAME, std::move(sessionId), std::move(sourcePath),
+        std::move(destinationPath));
+}
+
+napi_value SftpChmod(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value args[3] = {nullptr, nullptr, nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
+    std::string path = argc > 1 ? GetStringArg(env, args[1]) : "";
+    int32_t mode = argc > 2 ? GetIntArg(env, args[2]) : 0;
+    return QueueAsync(env, AsyncOperation::SFTP_CHMOD, std::move(sessionId), std::move(path), "", mode);
 }
 
 napi_value AddLocalForward(napi_env env, napi_callback_info info)
@@ -272,6 +397,12 @@ napi_value Init(napi_env env, napi_value exports)
         {"closeChannel", nullptr, CloseChannel, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"disconnect", nullptr, Disconnect, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"sftpList", nullptr, SftpList, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sftpUpload", nullptr, SftpUpload, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sftpDownload", nullptr, SftpDownload, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sftpMkdir", nullptr, SftpMkdir, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sftpRemove", nullptr, SftpRemove, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sftpRename", nullptr, SftpRename, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sftpChmod", nullptr, SftpChmod, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"addLocalForward", nullptr, AddLocalForward, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"addRemoteForward", nullptr, AddRemoteForward, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"addDynamicForward", nullptr, AddDynamicForward, nullptr, nullptr, nullptr, napi_default, nullptr},

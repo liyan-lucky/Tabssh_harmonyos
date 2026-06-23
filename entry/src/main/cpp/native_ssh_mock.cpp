@@ -207,6 +207,36 @@ NativeResult SftpList(const std::string& sessionId, const std::string& path)
     return {true, 0, "sftp list", data};
 }
 
+NativeResult SftpUpload(const std::string&, const std::string&, const std::string&)
+{
+    return {false, 501, "Mock SFTP upload is disabled", ""};
+}
+
+NativeResult SftpDownload(const std::string&, const std::string&, const std::string&)
+{
+    return {false, 501, "Mock SFTP download is disabled", ""};
+}
+
+NativeResult SftpMkdir(const std::string&, const std::string&)
+{
+    return {false, 501, "Mock SFTP mkdir is disabled", ""};
+}
+
+NativeResult SftpRemove(const std::string&, const std::string&, bool)
+{
+    return {false, 501, "Mock SFTP remove is disabled", ""};
+}
+
+NativeResult SftpRename(const std::string&, const std::string&, const std::string&)
+{
+    return {false, 501, "Mock SFTP rename is disabled", ""};
+}
+
+NativeResult SftpChmod(const std::string&, const std::string&, int32_t)
+{
+    return {false, 501, "Mock SFTP chmod is disabled", ""};
+}
+
 std::string AddLocalForward(const std::string& sessionId, int32_t localPort, const std::string& remoteHost, int32_t remotePort)
 {
     std::string id = NextId("lfwd");

@@ -12,7 +12,7 @@ interface WorkbenchAction {
 
 interface BottomTabItem {
   title: string;
-  icon: string;
+  icon: Resource;
 }
 
 @Entry
@@ -21,6 +21,7 @@ struct Index {
   @State profiles: ConnectionProfile[] = [];
   @State nativeVersion: string = '';
   @State activeTab: number = 0;
+  @StorageProp('avoidNavigationBarHeight') avoidNavigationBarHeight: number = 0;
 
   private readonly accentColor: string = '#0A84FF';
   private readonly pageBg: string = '#F3F7FF';
@@ -40,10 +41,10 @@ struct Index {
   ];
 
   private tabs: BottomTabItem[] = [
-    { title: '工作台', icon: '●●●' },
-    { title: '连接', icon: '↔' },
-    { title: '监控', icon: '▰' },
-    { title: '我的', icon: '♙' }
+    { title: '工作台', icon: $rawfile('tab_workbench.svg') },
+    { title: '连接', icon: $rawfile('tab_connections.svg') },
+    { title: '监控', icon: $rawfile('tab_monitor.svg') },
+    { title: '我的', icon: $rawfile('tab_profile.svg') }
   ];
 
   aboutToAppear(): void {
@@ -100,36 +101,140 @@ struct Index {
 
   @Builder
   Header() {
-    Row() {
-      Blank()
+    if (this.activeTab === 2) {
+      Row() {
+        Column({ space: 2 }) {
+          Text('设备监控')
+            .fontSize(24)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(this.textPrimary)
+          Text('0 台设备在线')
+            .fontSize(13)
+            .fontColor(this.textSecond)
+        }
+        .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
 
-      Row() {
-        Text('☁')
-          .fontSize(26)
+        Text('▣')
+          .fontSize(22)
           .fontColor(this.textPrimary)
-          .margin({ right: 10 })
-        Text(this.tabs[this.activeTab].title)
-          .fontSize(28)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.textPrimary)
+          .margin({ right: 18 })
+        Text('●')
+          .fontSize(18)
+          .fontColor('#34C759')
+          .margin({ right: 16 })
+        Text('≡')
+          .fontSize(22)
+          .fontColor(this.textSecond)
       }
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .layoutWeight(2)
+      .width('100%')
+      .height(72)
+      .padding({ left: 22, right: 22, top: 8 })
+    } else {
+      Row() {
+        Blank()
+          .layoutWeight(1)
 
-      Row() {
-        Text('🔧')
-          .fontSize(28)
-          .fontColor(this.textPrimary)
-          .onClick(() => router.pushUrl({ url: 'pages/SettingsPage' }))
+        Row() {
+          if (this.activeTab === 0) {
+            Text('☁')
+              .fontSize(22)
+              .fontColor(this.textPrimary)
+              .margin({ right: 8 })
+          }
+          Text(this.activeTab === 3 ? '设置' : this.tabs[this.activeTab].title)
+            .fontSize(22)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(this.textPrimary)
+        }
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .layoutWeight(2)
+
+        Row() {
+          if (this.activeTab === 0) {
+            Text('⚙')
+              .fontSize(22)
+              .fontColor(this.textPrimary)
+              .onClick(() => router.pushUrl({ url: 'pages/SettingsPage' }))
+          } else if (this.activeTab === 1) {
+            Text('+')
+              .fontSize(30)
+              .fontColor(this.accentColor)
+              .onClick(() => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+          }
+        }
+        .justifyContent(FlexAlign.End)
+        .layoutWeight(1)
       }
-      .justifyContent(FlexAlign.End)
-      .layoutWeight(1)
+      .width('100%')
+      .height(64)
+      .padding({ left: 22, right: 22, top: 10 })
+    }
+  }
+
+  @Builder
+  SectionLabel(title: string) {
+    Text(title)
+      .fontSize(15)
+      .fontWeight(FontWeight.Medium)
+      .fontColor('#64748B')
+      .width('92%')
+      .margin({ top: 14, bottom: 8 })
+  }
+
+  @Builder
+  CompactOptionRow(icon: string, title: string, subtitle: string, color: string, action: () => void,
+    showDivider: boolean = true) {
+    Column() {
+      Row() {
+        Row() {
+          Text(icon)
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+        }
+        .width(36)
+        .height(36)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor(color)
+        .borderRadius(10)
+        .margin({ right: 12 })
+
+        Column({ space: 2 }) {
+          Text(title)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary)
+            .maxLines(1)
+          if (subtitle.length > 0) {
+            Text(subtitle)
+              .fontSize(12)
+              .fontColor(this.textSecond)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text('›')
+          .fontSize(26)
+          .fontColor('#94A3B8')
+      }
+      .width('100%')
+      .height(subtitle.length > 0 ? 62 : 54)
+      .padding({ left: 14, right: 14 })
+      .onClick(action)
+
+      if (showDivider) {
+        Divider()
+          .color(this.lineColor)
+          .strokeWidth(1)
+          .margin({ left: 62 })
+      }
     }
     .width('100%')
-    .height(76)
-    .padding({ left: 26, right: 26, top: 16 })
   }
 
   @Builder
@@ -137,26 +242,26 @@ struct Index {
     Column() {
       Row() {
         Text(item.icon)
-          .fontSize(34)
+          .fontSize(22)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.accentColor)
-          .width(70)
+          .width(48)
           .textAlign(TextAlign.Center)
 
         Text(item.title)
-          .fontSize(29)
+          .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.textPrimary)
           .layoutWeight(1)
 
         Text('›')
-          .fontSize(42)
+          .fontSize(28)
           .fontColor('#C9CDD4')
-          .margin({ right: 6 })
+          .margin({ right: 2 })
       }
       .width('100%')
-      .height(92)
-      .padding({ left: 20, right: 18 })
+      .height(56)
+      .padding({ left: 14, right: 14 })
       .onClick(() => this.handleAction(item))
 
       if (index < this.actions.length - 1) {
@@ -179,9 +284,9 @@ struct Index {
       }
       .width('92%')
       .backgroundColor(Color.White)
-      .borderRadius(24)
+      .borderRadius(18)
       .clip(true)
-      .margin({ top: 22 })
+      .margin({ top: 14 })
 
       Blank()
     }
@@ -192,118 +297,192 @@ struct Index {
 
   @Builder
   ConnectionPage() {
-    Column() {
-      Row() {
-        Button('+ 新建连接')
-          .height(44)
-          .fontSize(16)
-          .backgroundColor(this.accentColor)
-          .borderRadius(12)
-          .layoutWeight(1)
-          .onClick(() => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+    Scroll() {
+      Column() {
+        Stack() {
+          Text('01 101 001  SSH  110 010 11')
+            .fontSize(16)
+            .fontColor('#406A88')
+            .width('100%')
+            .height('100%')
+            .textAlign(TextAlign.Center)
 
-        Button('端口转发')
-          .height(44)
-          .fontSize(16)
-          .backgroundColor('#EAF3FF')
-          .fontColor(this.accentColor)
-          .borderRadius(12)
-          .margin({ left: 10 })
-          .onClick(() => router.pushUrl({ url: 'pages/PortForwardPage' }))
-      }
-      .width('92%')
-      .margin({ top: 20, bottom: 12 })
-
-      if (this.profiles.length === 0) {
-        Column() {
-          Text('暂无主机')
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.textPrimary)
-          Text('点击“新建连接”添加 SSH 主机')
-            .fontSize(15)
-            .fontColor(this.textSecond)
-            .margin({ top: 8 })
+          Column({ space: 7 }) {
+            Text('SSH')
+              .fontSize(28)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#38BDF8')
+            Text('安全、稳定、高效的 SSH 连接工具')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Color.White)
+          }
         }
         .width('92%')
-        .height(150)
-        .justifyContent(FlexAlign.Center)
-        .backgroundColor(Color.White)
-        .borderRadius(22)
+        .height(122)
+        .backgroundColor('#082F49')
+        .borderRadius(18)
         .margin({ top: 10 })
-      } else {
-        List() {
-          ForEach(this.profiles, (profile: ConnectionProfile) => {
-            ListItem() {
+
+        Text('连接方式')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.textPrimary)
+          .width('92%')
+          .margin({ top: 16 })
+        Text('添加主机、使用 SFTP，或进入本地终端。')
+          .fontSize(13)
+          .fontColor(this.textSecond)
+          .width('92%')
+          .margin({ top: 5, bottom: 10 })
+
+        Column() {
+          this.CompactOptionRow('▣', 'SSH 主机连接', '新建或管理密码 / 私钥连接', '#0A84FF',
+            () => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+          this.CompactOptionRow('■', '通过 SFTP 连接', '复用已认证的 SSH 会话', '#2EA8E5',
+            () => router.pushUrl({ url: 'pages/SftpPage' }))
+          this.CompactOptionRow('◎', '发现局域网设备', '局域网扫描功能开发中', '#35C7D7',
+            () => this.toast('局域网设备发现尚未接入真实扫描'))
+          this.CompactOptionRow('>_', '本地终端', '本地 shell 功能开发中', '#38BDF8',
+            () => this.toast('本地终端尚未实现'), false)
+        }
+        .width('92%')
+        .backgroundColor(Color.White)
+        .borderRadius(18)
+        .clip(true)
+
+        this.SectionLabel('已保存主机')
+        if (this.profiles.length === 0) {
+          Row() {
+            Text('暂无主机，点击右上角 + 添加')
+              .fontSize(14)
+              .fontColor(this.textSecond)
+          }
+          .width('92%')
+          .height(54)
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor(Color.White)
+          .borderRadius(16)
+        } else {
+          Column() {
+            ForEach(this.profiles, (profile: ConnectionProfile, index: number) => {
               Column() {
                 Row() {
                   Text('▤')
-                    .fontSize(30)
+                    .fontSize(22)
                     .fontColor(this.accentColor)
-                    .width(48)
-                  Column() {
+                    .width(38)
+                  Column({ space: 2 }) {
                     Text(profile.name)
-                      .fontSize(21)
-                      .fontWeight(FontWeight.Bold)
+                      .fontSize(16)
+                      .fontWeight(FontWeight.Medium)
                       .fontColor(this.textPrimary)
                     Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
-                      .fontSize(14)
+                      .fontSize(12)
                       .fontColor(this.textSecond)
-                      .margin({ top: 4 })
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
                   }
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
                   Text('连接')
-                    .fontSize(16)
+                    .fontSize(13)
                     .fontColor(this.accentColor)
-                    .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+                    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
                     .backgroundColor('#EAF3FF')
-                    .borderRadius(12)
+                    .borderRadius(10)
                     .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
                 }
                 .width('100%')
-                .padding(18)
+                .height(58)
+                .padding({ left: 12, right: 12 })
+                if (index < this.profiles.length - 1) {
+                  Divider().color(this.lineColor).margin({ left: 50 })
+                }
               }
-              .backgroundColor(Color.White)
-              .borderRadius(18)
-            }
-            .margin({ left: 16, right: 16, bottom: 10 })
-          }, (profile: ConnectionProfile) => profile.id)
+            }, (profile: ConnectionProfile) => profile.id)
+          }
+          .width('92%')
+          .backgroundColor(Color.White)
+          .borderRadius(16)
+          .clip(true)
         }
-        .layoutWeight(1)
-        .width('100%')
+
+        Button('端口转发')
+          .height(40)
+          .fontSize(14)
+          .fontColor(this.accentColor)
+          .backgroundColor('#EAF3FF')
+          .borderRadius(12)
+          .margin({ top: 12, bottom: 18 })
+          .onClick(() => router.pushUrl({ url: 'pages/PortForwardPage' }))
       }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .layoutWeight(1)
-    .alignItems(HorizontalAlign.Center)
   }
 
   @Builder
   MonitorPage() {
     Column() {
-      Column() {
-        Text('监控')
-          .fontSize(26)
+      Blank()
+
+      Stack() {
+        Circle()
+          .width(132)
+          .height(132)
+          .fill('#EEF3FF')
+        Text('▣')
+          .fontSize(54)
+          .fontColor('#D8E1EE')
+      }
+
+      Text('暂无监控设备')
+          .fontSize(24)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.textPrimary)
-        Text('主机状态、CPU、内存、磁盘、网络速率页面已预留')
-          .fontSize(16)
+          .margin({ top: 24 })
+      Text('添加第一台设备开始监控')
+          .fontSize(15)
           .fontColor(this.textSecond)
-          .margin({ top: 8 })
-        Text('Native: ' + this.nativeVersion)
-          .fontSize(13)
-          .fontColor(this.accentColor)
-          .margin({ top: 14 })
-      }
-      .width('92%')
-      .padding(22)
-      .alignItems(HorizontalAlign.Start)
-      .backgroundColor(Color.White)
-      .borderRadius(22)
-      .margin({ top: 22 })
+          .margin({ top: 10 })
+
+      Button('⊕  添加设备')
+        .width(190)
+        .height(48)
+        .fontSize(16)
+        .backgroundColor(this.accentColor)
+        .borderRadius(14)
+        .margin({ top: 28 })
+        .onClick(() => {
+          this.activeTab = 1;
+          router.pushUrl({ url: 'pages/ConnectionEditPage' });
+        })
+
+      Text('ⓘ  查看功能介绍')
+        .fontSize(15)
+        .fontColor('#64748B')
+        .margin({ top: 22 })
+        .onClick(() => this.toast('设备在线、CPU、内存、磁盘和网络监控尚未实现'))
 
       Blank()
+
+      Row() {
+        Text('+')
+          .fontSize(30)
+          .fontColor(Color.White)
+      }
+      .width(54)
+      .height(54)
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor(this.accentColor)
+      .borderRadius(16)
+      .shadow({ radius: 8, color: '#300A84FF', offsetY: 4 })
+      .alignSelf(ItemAlign.End)
+      .margin({ right: 20, bottom: 16 })
+      .onClick(() => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
     }
     .width('100%')
     .layoutWeight(1)
@@ -312,36 +491,72 @@ struct Index {
 
   @Builder
   MinePage() {
-    Column() {
+    Scroll() {
       Column() {
-        Text('OpenTabSsh')
-          .fontSize(28)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.textPrimary)
-        Text('ArkTS + ArkUI + Native C++ SSH Core')
-          .fontSize(15)
-          .fontColor(this.textSecond)
-          .margin({ top: 8 })
-        Button('关于项目')
-          .height(42)
-          .fontSize(16)
-          .backgroundColor(this.accentColor)
-          .borderRadius(12)
-          .margin({ top: 18 })
-          .onClick(() => router.pushUrl({ url: 'pages/AboutPage' }))
-      }
-      .width('92%')
-      .padding(22)
-      .alignItems(HorizontalAlign.Start)
-      .backgroundColor(Color.White)
-      .borderRadius(22)
-      .margin({ top: 22 })
+        Row() {
+          Text('❝')
+            .fontSize(26)
+            .fontColor('#7757E8')
+            .margin({ right: 12 })
+          Text('富润屋，德润身，心广体胖。——《大学》')
+            .fontSize(14)
+            .fontColor(this.textPrimary)
+            .layoutWeight(1)
+            .maxLines(2)
+          Text('↻')
+            .fontSize(22)
+            .fontColor('#64748B')
+            .margin({ left: 8 })
+            .onClick(() => this.toast('已更新今日寄语'))
+        }
+        .width('92%')
+        .height(78)
+        .padding({ left: 16, right: 16 })
+        .backgroundColor(Color.White)
+        .borderRadius(18)
+        .shadow({ radius: 8, color: '#10000000', offsetY: 3 })
+        .margin({ top: 12 })
 
-      Blank()
+        this.SectionLabel('终端')
+        Column() {
+          this.CompactOptionRow('>_', '终端设置', '字体、主题、键盘等完整配置', '#0A84FF',
+            () => router.pushUrl({ url: 'pages/TerminalSettingsPage' }), false)
+        }
+        .width('92%')
+        .backgroundColor(Color.White)
+        .borderRadius(18)
+        .clip(true)
+
+        this.SectionLabel('系统设置')
+        Column() {
+          this.CompactOptionRow('⚙', '系统设置', '', '#6554D9',
+            () => router.pushUrl({ url: 'pages/SettingsPage' }))
+          this.CompactOptionRow('⇧', '分享应用', '', '#2FC665',
+            () => this.toast('系统分享面板接入中'), false)
+        }
+        .width('92%')
+        .backgroundColor(Color.White)
+        .borderRadius(18)
+        .clip(true)
+
+        this.SectionLabel('关于')
+        Column() {
+          this.CompactOptionRow('i', '关于', 'OpenTabSsh 与 Native Core 信息', '#34B7E5',
+            () => router.pushUrl({ url: 'pages/AboutPage' }))
+          this.CompactOptionRow('∞', '备案信息', '待发布主体确认', '#FF2965',
+            () => this.toast('备案信息将在正式发布前配置'), false)
+        }
+        .width('92%')
+        .backgroundColor(Color.White)
+        .borderRadius(18)
+        .clip(true)
+        .margin({ bottom: 20 })
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .layoutWeight(1)
-    .alignItems(HorizontalAlign.Center)
   }
 
   @Builder
@@ -361,39 +576,23 @@ struct Index {
   BottomNavigation() {
     Row() {
       ForEach(this.tabs, (tab: BottomTabItem, index: number) => {
-        Column() {
-          Text(tab.icon)
-            .fontSize(index === 0 ? 28 : 26)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.activeTab === index ? this.accentColor : '#8D939E')
-            .height(32)
-            .textAlign(TextAlign.Center)
+        Column({ space: 3 }) {
+          Image(tab.icon)
+            .width(22)
+            .height(22)
+            .fillColor(this.activeTab === index ? this.accentColor : '#8D939E')
 
           Text(tab.title)
-            .fontSize(18)
-            .fontWeight(this.activeTab === index ? FontWeight.Bold : FontWeight.Medium)
+            .fontSize(11)
             .fontColor(this.activeTab === index ? this.accentColor : '#8D939E')
-            .margin({ top: 2 })
-
-          if (this.activeTab === index) {
-            Row()
-              .width(36)
-              .height(4)
-              .backgroundColor(this.accentColor)
-              .borderRadius(2)
-              .margin({ top: 6 })
-          } else {
-            Row()
-              .width(36)
-              .height(4)
-              .backgroundColor(Color.Transparent)
-              .margin({ top: 6 })
-          }
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .layoutWeight(1)
-        .height(76)
-        .justifyContent(FlexAlign.Center)
+        .height('100%')
+        .justifyContent(FlexAlign.End)
         .alignItems(HorizontalAlign.Center)
+        .padding({ top: 4, bottom: 4 })
         .onClick(() => {
           this.activeTab = index;
           if (index === 1) {
@@ -403,16 +602,35 @@ struct Index {
       }, (tab: BottomTabItem) => tab.title)
     }
     .width('100%')
-    .height(92)
-    .padding({ left: 18, right: 18, bottom: 8 })
-    .backgroundColor(Color.White)
+    .height(56)
+    .borderRadius(28)
+    .backgroundColor('#D9FFFFFF')
+    .backgroundBlurStyle(BlurStyle.Thin, {
+      colorMode: ThemeColorMode.LIGHT,
+      adaptiveColor: AdaptiveColor.AVERAGE
+    })
+    .border({ width: 1, color: '#50FFFFFF' })
+    .shadow({ radius: 8, color: '#18000000', offsetY: 3 })
   }
 
   build() {
-    Column() {
-      this.Header()
-      this.ContentPage()
-      this.BottomNavigation()
+    Stack() {
+      Column() {
+        this.Header()
+        this.ContentPage()
+      }
+      .width('100%')
+      .height('100%')
+      .padding({ bottom: 72 })
+
+      Column() {
+        this.BottomNavigation()
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.End)
+      .padding({ left: 16, right: 16, bottom: this.avoidNavigationBarHeight + 8 })
+      .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height('100%')

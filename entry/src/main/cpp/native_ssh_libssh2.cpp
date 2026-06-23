@@ -6,13 +6,16 @@
 #include <libssh2_sftp.h>
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <chrono>
 #include <cctype>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -547,6 +550,55 @@ void CloseChannelInternal(SessionState& session, LIBSSH2_CHANNEL* channel)
     } while (result == LIBSSH2_ERROR_EAGAIN && WaitForChannel(session, deadline));
 }
 
+NativeResult EnsureSftp(SessionState& session, const std::chrono::steady_clock::time_point& deadline)
+{
+    while (session.sftp == nullptr) {
+        session.sftp = libssh2_sftp_init(session.session);
+        if (session.sftp == nullptr && libssh2_session_last_errno(session.session) == LIBSSH2_ERROR_EAGAIN) {
+            if (!WaitForChannel(session, deadline)) return {false, kTimeout, "SFTP initialization timed out", ""};
+            continue;
+        }
+        if (session.sftp == nullptr) {
+            return {false, -1, SessionError(session.session, "SFTP initialization failed"), ""};
+        }
+    }
+    return {true, 0, "SFTP ready", ""};
+}
+
+bool CloseSftpHandle(SessionState& session, LIBSSH2_SFTP_HANDLE* handle)
+{
+    if (handle == nullptr) return true;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
+    int result;
+    do {
+        result = libssh2_sftp_close_handle(handle);
+    } while (result == LIBSSH2_ERROR_EAGAIN && WaitForChannel(session, deadline));
+    return result == 0;
+}
+
+LIBSSH2_SFTP_HANDLE* OpenSftpFile(SessionState& session, const std::string& path, unsigned long flags,
+    long mode, const std::chrono::steady_clock::time_point& deadline)
+{
+    LIBSSH2_SFTP_HANDLE* handle = nullptr;
+    while (handle == nullptr) {
+        handle = libssh2_sftp_open_ex(session.sftp, path.c_str(), static_cast<unsigned int>(path.size()),
+            flags, mode, LIBSSH2_SFTP_OPENFILE);
+        if (handle == nullptr && libssh2_session_last_errno(session.session) == LIBSSH2_ERROR_EAGAIN) {
+            if (!WaitForChannel(session, deadline)) return nullptr;
+            continue;
+        }
+        return handle;
+    }
+    return handle;
+}
+
+NativeResult SftpSimpleResult(SessionState& session, int result, const std::string& successMessage,
+    const std::string& failureMessage)
+{
+    if (result == 0) return {true, 0, successMessage, ""};
+    return {false, static_cast<int32_t>(result), SessionError(session.session, failureMessage), ""};
+}
+
 } // namespace
 
 std::string Version()
@@ -750,14 +802,8 @@ NativeResult SftpList(const std::string& sessionId, const std::string& path)
     SessionState* session = FindAuthenticatedSession(sessionId);
     if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
-    while (session->sftp == nullptr) {
-        session->sftp = libssh2_sftp_init(session->session);
-        if (session->sftp == nullptr && libssh2_session_last_errno(session->session) == LIBSSH2_ERROR_EAGAIN) {
-            if (!WaitForChannel(*session, deadline)) return {false, kTimeout, "SFTP initialization timed out", ""};
-            continue;
-        }
-        if (session->sftp == nullptr) return {false, -1, SessionError(session->session, "SFTP initialization failed"), ""};
-    }
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
     LIBSSH2_SFTP_HANDLE* directory = nullptr;
     while (directory == nullptr) {
         directory = libssh2_sftp_opendir(session->sftp, path.c_str());
@@ -810,6 +856,196 @@ NativeResult SftpList(const std::string& sessionId, const std::string& path)
     } while (closeResult == LIBSSH2_ERROR_EAGAIN && WaitForChannel(*session, deadline));
     entries << ']';
     return {true, 0, "sftp list", entries.str()};
+}
+
+NativeResult SftpUpload(const std::string& sessionId, const std::string& localPath, const std::string& remotePath)
+{
+    if (localPath.empty() || remotePath.empty()) return {false, kInvalidProfile, "file path is required", ""};
+    std::lock_guard<std::mutex> lock(g_mutex);
+    SessionState* session = FindAuthenticatedSession(sessionId);
+    if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    std::ifstream input(localPath, std::ios::binary);
+    if (!input.is_open()) return {false, -1, "local file could not be opened", ""};
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
+    LIBSSH2_SFTP_HANDLE* remote = OpenSftpFile(*session, remotePath,
+        LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT | LIBSSH2_FXF_TRUNC, 0600, deadline);
+    if (remote == nullptr) return {false, -1, SessionError(session->session, "remote file could not be opened"), ""};
+
+    std::array<char, 32768> buffer{};
+    uint64_t total = 0;
+    while (input.good()) {
+        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        std::streamsize count = input.gcount();
+        if (count <= 0) break;
+        std::streamsize offset = 0;
+        while (offset < count) {
+            ssize_t written = libssh2_sftp_write(remote, buffer.data() + offset,
+                static_cast<size_t>(count - offset));
+            if (written == LIBSSH2_ERROR_EAGAIN) {
+                if (!WaitForChannel(*session, deadline)) {
+                    CloseSftpHandle(*session, remote);
+                    return {false, kTimeout, "SFTP upload timed out", ""};
+                }
+                continue;
+            }
+            if (written <= 0) {
+                CloseSftpHandle(*session, remote);
+                return {false, static_cast<int32_t>(written), SessionError(session->session, "SFTP upload failed"), ""};
+            }
+            offset += static_cast<std::streamsize>(written);
+            total += static_cast<uint64_t>(written);
+        }
+    }
+    if (input.bad()) {
+        CloseSftpHandle(*session, remote);
+        return {false, -1, "local file read failed", ""};
+    }
+    if (!CloseSftpHandle(*session, remote)) {
+        return {false, -1, SessionError(session->session, "remote file close failed"), ""};
+    }
+    return {true, 0, "SFTP upload complete", std::to_string(total)};
+}
+
+NativeResult SftpDownload(const std::string& sessionId, const std::string& remotePath, const std::string& localPath)
+{
+    if (localPath.empty() || remotePath.empty()) return {false, kInvalidProfile, "file path is required", ""};
+    std::lock_guard<std::mutex> lock(g_mutex);
+    SessionState* session = FindAuthenticatedSession(sessionId);
+    if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
+    LIBSSH2_SFTP_HANDLE* remote = OpenSftpFile(*session, remotePath, LIBSSH2_FXF_READ, 0, deadline);
+    if (remote == nullptr) return {false, -1, SessionError(session->session, "remote file could not be opened"), ""};
+    std::ofstream output(localPath, std::ios::binary | std::ios::trunc);
+    if (!output.is_open()) {
+        CloseSftpHandle(*session, remote);
+        return {false, -1, "local destination could not be opened", ""};
+    }
+
+    std::array<char, 32768> buffer{};
+    uint64_t total = 0;
+    while (true) {
+        ssize_t read = libssh2_sftp_read(remote, buffer.data(), buffer.size());
+        if (read == LIBSSH2_ERROR_EAGAIN) {
+            if (!WaitForChannel(*session, deadline)) {
+                CloseSftpHandle(*session, remote);
+                output.close();
+                std::remove(localPath.c_str());
+                return {false, kTimeout, "SFTP download timed out", ""};
+            }
+            continue;
+        }
+        if (read < 0) {
+            CloseSftpHandle(*session, remote);
+            output.close();
+            std::remove(localPath.c_str());
+            return {false, static_cast<int32_t>(read), SessionError(session->session, "SFTP download failed"), ""};
+        }
+        if (read == 0) break;
+        output.write(buffer.data(), static_cast<std::streamsize>(read));
+        if (!output.good()) {
+            CloseSftpHandle(*session, remote);
+            output.close();
+            std::remove(localPath.c_str());
+            return {false, -1, "local destination write failed", ""};
+        }
+        total += static_cast<uint64_t>(read);
+    }
+    output.close();
+    if (!CloseSftpHandle(*session, remote)) {
+        std::remove(localPath.c_str());
+        return {false, -1, SessionError(session->session, "remote file close failed"), ""};
+    }
+    return {true, 0, "SFTP download complete", std::to_string(total)};
+}
+
+NativeResult SftpMkdir(const std::string& sessionId, const std::string& path)
+{
+    if (path.empty()) return {false, kInvalidProfile, "directory path is required", ""};
+    std::lock_guard<std::mutex> lock(g_mutex);
+    SessionState* session = FindAuthenticatedSession(sessionId);
+    if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
+    int result;
+    do {
+        result = libssh2_sftp_mkdir_ex(session->sftp, path.c_str(), static_cast<unsigned int>(path.size()), 0700);
+        if (result == LIBSSH2_ERROR_EAGAIN && !WaitForChannel(*session, deadline)) {
+            return {false, kTimeout, "SFTP create directory timed out", ""};
+        }
+    } while (result == LIBSSH2_ERROR_EAGAIN);
+    return SftpSimpleResult(*session, result, "SFTP directory created", "SFTP create directory failed");
+}
+
+NativeResult SftpRemove(const std::string& sessionId, const std::string& path, bool directory)
+{
+    if (path.empty()) return {false, kInvalidProfile, "remote path is required", ""};
+    std::lock_guard<std::mutex> lock(g_mutex);
+    SessionState* session = FindAuthenticatedSession(sessionId);
+    if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
+    int result;
+    do {
+        result = directory ?
+            libssh2_sftp_rmdir_ex(session->sftp, path.c_str(), static_cast<unsigned int>(path.size())) :
+            libssh2_sftp_unlink_ex(session->sftp, path.c_str(), static_cast<unsigned int>(path.size()));
+        if (result == LIBSSH2_ERROR_EAGAIN && !WaitForChannel(*session, deadline)) {
+            return {false, kTimeout, "SFTP remove timed out", ""};
+        }
+    } while (result == LIBSSH2_ERROR_EAGAIN);
+    return SftpSimpleResult(*session, result, "SFTP entry removed", "SFTP remove failed");
+}
+
+NativeResult SftpRename(const std::string& sessionId, const std::string& sourcePath,
+    const std::string& destinationPath)
+{
+    if (sourcePath.empty() || destinationPath.empty()) return {false, kInvalidProfile, "remote paths are required", ""};
+    std::lock_guard<std::mutex> lock(g_mutex);
+    SessionState* session = FindAuthenticatedSession(sessionId);
+    if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
+    int result;
+    do {
+        result = libssh2_sftp_rename_ex(session->sftp,
+            sourcePath.c_str(), static_cast<unsigned int>(sourcePath.size()),
+            destinationPath.c_str(), static_cast<unsigned int>(destinationPath.size()),
+            LIBSSH2_SFTP_RENAME_OVERWRITE);
+        if (result == LIBSSH2_ERROR_EAGAIN && !WaitForChannel(*session, deadline)) {
+            return {false, kTimeout, "SFTP rename timed out", ""};
+        }
+    } while (result == LIBSSH2_ERROR_EAGAIN);
+    return SftpSimpleResult(*session, result, "SFTP entry renamed", "SFTP rename failed");
+}
+
+NativeResult SftpChmod(const std::string& sessionId, const std::string& path, int32_t mode)
+{
+    if (path.empty() || mode < 0 || mode > 07777) return {false, kInvalidProfile, "valid path and mode are required", ""};
+    std::lock_guard<std::mutex> lock(g_mutex);
+    SessionState* session = FindAuthenticatedSession(sessionId);
+    if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    NativeResult sftpStatus = EnsureSftp(*session, deadline);
+    if (!sftpStatus.ok) return sftpStatus;
+    LIBSSH2_SFTP_ATTRIBUTES attributes{};
+    attributes.flags = LIBSSH2_SFTP_ATTR_PERMISSIONS;
+    attributes.permissions = static_cast<unsigned long>(mode);
+    int result;
+    do {
+        result = libssh2_sftp_stat_ex(session->sftp, path.c_str(), static_cast<unsigned int>(path.size()),
+            LIBSSH2_SFTP_SETSTAT, &attributes);
+        if (result == LIBSSH2_ERROR_EAGAIN && !WaitForChannel(*session, deadline)) {
+            return {false, kTimeout, "SFTP permission update timed out", ""};
+        }
+    } while (result == LIBSSH2_ERROR_EAGAIN);
+    return SftpSimpleResult(*session, result, "SFTP permissions updated", "SFTP permission update failed");
 }
 
 std::string AddLocalForward(const std::string&, int32_t, const std::string&, int32_t)
