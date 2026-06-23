@@ -21,4 +21,4 @@
 
 DevEco 签名材料只能放在 `99_Temp` 的 TabSSH 专属私有目录或用户级安全存储，严禁进入仓库。`.p12`、`.p7b`、`.cer`、`.jks`、`.keystore`、`.pem`、`.key`、`.csr`、`signing/` 和 `.idea/` 均被忽略；口令不得出现在 build-profile、脚本、文档或提交记录。
 
-构建前使用 `scripts/stage_project_for_build.ps1`。清理使用 `scripts/clean_project.ps1`，外部清理必须显式指定 `-IncludeExternalBuild`，且脚本只能触碰本表的 TabSSH 专属路径。
+构建前使用 `scripts/stage_project_for_build.ps1`。只清理仓库内构建产物可使用 `scripts/clean_project.ps1 -BuildOnly`，不会触碰 IDE 配置；完整清理使用 `scripts/clean_project.ps1`。外部清理必须显式指定 `-IncludeExternalBuild`，且脚本只能触碰本表的 TabSSH 专属路径。

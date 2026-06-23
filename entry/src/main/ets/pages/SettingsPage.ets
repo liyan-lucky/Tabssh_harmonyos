@@ -1,5 +1,6 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
+import { createIconColorFilter } from '../common/IconUtils';
 
 @Entry
 @Component
@@ -20,10 +21,11 @@ struct SettingsPage {
   @Builder
   Header() {
     Row() {
-      Text('‹')
-        .fontSize(34)
-        .fontColor(this.textPrimary)
-        .width(44)
+      Image($rawfile('ft_back.svg'))
+        .width(24)
+        .height(24)
+        .colorFilter(createIconColorFilter(this.textPrimary))
+        .margin({ left: 10, right: 10 })
         .onClick(() => router.back())
       Text('系统设置')
         .fontSize(22)
@@ -49,15 +51,15 @@ struct SettingsPage {
   }
 
   @Builder
-  ValueRow(icon: string, title: string, value: string, color: string, action: () => void,
+  ValueRow(icon: Resource, title: string, value: string, color: string, action: () => void,
     showDivider: boolean = true) {
     Column() {
       Row() {
         Row() {
-          Text(icon)
-            .fontSize(19)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
+          Image(icon)
+            .width(21)
+            .height(21)
+            .colorFilter(createIconColorFilter('#FFFFFF'))
         }
         .width(36)
         .height(36)
@@ -78,9 +80,11 @@ struct SettingsPage {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
-        Text('›')
-          .fontSize(26)
-          .fontColor('#94A3B8')
+        Image($rawfile('ft_up.svg'))
+          .width(18)
+          .height(18)
+          .rotate({ angle: 90 })
+          .colorFilter(createIconColorFilter('#94A3B8'))
       }
       .width('100%')
       .height(58)
@@ -93,15 +97,15 @@ struct SettingsPage {
   }
 
   @Builder
-  ToggleRow(icon: string, title: string, enabled: boolean, color: string, action: (value: boolean) => void,
+  ToggleRow(icon: Resource, title: string, enabled: boolean, color: string, action: (value: boolean) => void,
     showDivider: boolean = true) {
     Column() {
       Row() {
         Row() {
-          Text(icon)
-            .fontSize(19)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
+          Image(icon)
+            .width(21)
+            .height(21)
+            .colorFilter(createIconColorFilter('#FFFFFF'))
         }
         .width(36)
         .height(36)
@@ -140,9 +144,12 @@ struct SettingsPage {
       Scroll() {
         Column() {
           Column() {
-            this.ValueRow('◎', '语言', '简体中文', '#1598E8', () => this.toast('当前使用简体中文'))
-            this.ValueRow('◐', '主题', '浅色', '#20B8E6', () => this.toast('深色主题尚在适配'))
-            this.ValueRow('T', '字体大小', '中', '#7356E8', () => this.toast('当前字体大小：中'), false)
+            this.ValueRow($rawfile('settings_language.svg'), '语言', '简体中文', '#1598E8',
+              () => this.toast('当前使用简体中文'))
+            this.ValueRow($rawfile('settings_palette.svg'), '主题', '浅色', '#20B8E6',
+              () => this.toast('深色主题尚在适配'))
+            this.ValueRow($rawfile('settings_display.svg'), '字体大小', '中', '#7356E8',
+              () => this.toast('当前字体大小：中'), false)
           }
           .width('92%')
           .backgroundColor(Color.White)
@@ -152,11 +159,11 @@ struct SettingsPage {
 
           this.SectionTitle('文件管理')
           Column() {
-            this.ToggleRow('⇩', '自动保存', this.autoSave, '#6554D9',
+            this.ToggleRow($rawfile('settings_folder.svg'), '自动保存', this.autoSave, '#6554D9',
               (value: boolean) => this.autoSave = value)
-            this.ToggleRow('⇵', '自动压缩', this.autoCompress, '#FF9F0A',
+            this.ToggleRow($rawfile('settings_update.svg'), '自动压缩', this.autoCompress, '#FF9F0A',
               (value: boolean) => this.autoCompress = value)
-            this.ValueRow('▣', '最大文件限制', '100 MB', '#0A84FF',
+            this.ValueRow($rawfile('ft_file.svg'), '最大文件限制', '100 MB', '#0A84FF',
               () => this.toast('最大文件限制：100 MB'), false)
           }
           .width('92%')
@@ -172,9 +179,9 @@ struct SettingsPage {
 
           this.SectionTitle('存储与缓存')
           Column() {
-            this.ValueRow('⌫', '清除缓存', '清除临时文件和缩略图', '#FF2965',
+            this.ValueRow($rawfile('ft_delete.svg'), '清除缓存', '清除临时文件和缩略图', '#FF2965',
               () => this.toast('尚无可清理的应用缓存'))
-            this.ValueRow('≣', '存储空间', '查看应用占用情况', '#32B4DE',
+            this.ValueRow($rawfile('settings_server.svg'), '存储空间', '查看应用占用情况', '#32B4DE',
               () => this.toast('系统存储详情入口接入中'), false)
           }
           .width('92%')

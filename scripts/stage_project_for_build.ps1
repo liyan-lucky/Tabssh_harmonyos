@@ -25,7 +25,7 @@ if (Test-Path -LiteralPath $StageRoot) {
 New-Item -ItemType Directory -Path $StageRoot -Force | Out-Null
 
 $excludedDirs = @(
-  ".git", ".appanalyzer", ".codeartsdoer", ".hvigor", ".hvigor_home", ".idea", ".vscode",
+  ".git", ".agents", ".codex", ".appanalyzer", ".codeartsdoer", ".hvigor", ".hvigor_home", ".idea", ".vscode",
   "build", "node_modules", "oh_modules", "entry\build", "entry\.cxx", "entry\.preview", "entry\oh_modules"
 )
 $args = @($projectRoot, $StageRoot, "/E", "/COPY:DAT", "/DCOPY:DA", "/R:2", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/XD") +

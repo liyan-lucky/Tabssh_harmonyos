@@ -21,6 +21,16 @@
           ],
           "when": "always"
         }
+      },
+      {
+        "name": "ohos.permission.GET_NETWORK_INFO",
+        "reason": "$string:permission_network_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "always"
+        }
       }
     ],
     "abilities": [
@@ -28,9 +38,9 @@
         "name": "EntryAbility",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
-        "icon": "$media:app_icon",
+        "icon": "$media:app_icon_proicons",
         "label": "$string:app_name",
-        "startWindowIcon": "$media:app_icon",
+        "startWindowIcon": "$media:app_icon_proicons",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "skills": [

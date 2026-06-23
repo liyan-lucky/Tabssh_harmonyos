@@ -6,6 +6,7 @@ import common from '@ohos.app.ability.common';
 import { NativeJsonResult, NativeSshCore } from '../common/native/NativeSshCore';
 import { SftpEntry, TerminalTab } from '../common/models/TerminalModels';
 import { TerminalSessionManager } from '../common/services/TerminalSessionManager';
+import { createIconColorFilter } from '../common/IconUtils';
 
 @Entry
 @Component
@@ -115,7 +116,7 @@ struct SftpPage {
       cachePath = context.cacheDir + '/sftp_upload_' + Date.now().toString();
       const source: fs.File = fs.openSync(selectedUris[0], fs.OpenMode.READ_ONLY);
       try {
-        fs.copyFileSync(source.fd, cachePath);
+        await fs.copyFile(source.fd, cachePath);
       } finally {
         fs.closeSync(source);
       }
@@ -154,7 +155,7 @@ struct SftpPage {
       }
       const destination: fs.File = fs.openSync(destinationUris[0], fs.OpenMode.WRITE_ONLY);
       try {
-        fs.copyFileSync(cachePath, destination.fd);
+        await fs.copyFile(cachePath, destination.fd);
       } finally {
         fs.closeSync(destination);
       }
@@ -296,10 +297,12 @@ struct SftpPage {
   build() {
     Column() {
       Row() {
-        Text('‹').fontSize(34).fontColor(this.textPrimary).width(44).onClick(() => router.back())
+        Image($rawfile('ft_back.svg')).width(24).height(24).margin({ left: 10, right: 10 })
+          .colorFilter(createIconColorFilter(this.textPrimary)).onClick(() => router.back())
         Text('SFTP 文件').fontSize(22).fontWeight(FontWeight.Bold).fontColor(this.textPrimary)
           .layoutWeight(1).textAlign(TextAlign.Center)
-        Text('↻').fontSize(24).fontColor(this.accentColor).width(44).textAlign(TextAlign.End)
+        Image($rawfile('refresh.svg')).width(24).height(24).margin({ left: 10, right: 10 })
+          .colorFilter(createIconColorFilter(this.accentColor))
           .onClick(() => this.loadList(this.currentPath))
       }
       .width('100%').height(64).padding({ left: 14, right: 14, top: 8 })
@@ -370,14 +373,17 @@ struct SftpPage {
         ForEach(this.entries, (entry: SftpEntry) => {
           ListItem() {
             Row() {
-              Text(entry.type === 'dir' ? '📁' : '📄').fontSize(20)
+              Image(entry.type === 'dir' ? $rawfile('ft_folder.svg') : $rawfile('ft_file.svg'))
+                .width(22).height(22).colorFilter(createIconColorFilter(this.accentColor))
               Column({ space: 2 }) {
                 Text(entry.name).fontColor(this.textPrimary).fontSize(15).maxLines(1)
                 Text(entry.size.toString() + ' bytes').fontColor(this.textSecond).fontSize(11)
               }
               .margin({ left: 10 }).alignItems(HorizontalAlign.Start).layoutWeight(1)
-              Text(entry.type === 'dir' ? '›' : '⋯').fontSize(25).fontColor('#94A3B8').width(38)
-                .textAlign(TextAlign.Center).onClick(() => this.selectEntry(entry))
+              Image(entry.type === 'dir' ? $rawfile('ft_up.svg') : $rawfile('settings_tune.svg'))
+                .width(19).height(19).rotate({ angle: entry.type === 'dir' ? 90 : 0 })
+                .colorFilter(createIconColorFilter('#94A3B8')).margin({ left: 9, right: 10 })
+                .onClick(() => this.selectEntry(entry))
             }
             .padding(10).width('100%').backgroundColor(Color.White).borderRadius(12)
             .onClick(() => {

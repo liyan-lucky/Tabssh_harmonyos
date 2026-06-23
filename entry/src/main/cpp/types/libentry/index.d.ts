@@ -16,10 +16,10 @@ declare namespace nativeSsh {
   function sftpRemove(sessionId: string, path: string, directory: number): Promise<string>;
   function sftpRename(sessionId: string, sourcePath: string, destinationPath: string): Promise<string>;
   function sftpChmod(sessionId: string, path: string, mode: number): Promise<string>;
-  function addLocalForward(sessionId: string, localPort: number, remoteHost: string, remotePort: number): string;
-  function addRemoteForward(sessionId: string, remotePort: number, localHost: string, localPort: number): string;
-  function addDynamicForward(sessionId: string, localPort: number): string;
-  function removeForward(forwardId: string): string;
+  function addLocalForward(sessionId: string, localPort: number, remoteHost: string, remotePort: number): Promise<string>;
+  function addRemoteForward(sessionId: string, remotePort: number, localHost: string, localPort: number): Promise<string>;
+  function addDynamicForward(sessionId: string, localPort: number): Promise<string>;
+  function removeForward(forwardId: string): Promise<string>;
 }
 
 export default nativeSsh;

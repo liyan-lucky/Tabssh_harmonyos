@@ -51,6 +51,16 @@ SHA256 `6DB07DB21303EA29FBCA24B9FD17953A04CE5B49BF4BEAB929825D1D6FD3ED20` 的公
 
 隔离验收端仅绑定宿主机回环，HostKey 与文件系统均在测试进程内生成，凭据仅存在环境变量和应用运行内存。真实 libssh2/N-API 路径完成：建目录；小文本上传后再下载到应用私有缓存并逐字节一致；重命名；chmod 为 `0644`；删除文件和空目录。最终哈希安装后又复验了密码认证、PTY 与上传→下载回读一致，进程保持存活。系统文档“保存”选择器在当前自动化模拟器上出现界面未显示且 Promise 未返回，未写成通过；需在真机手工验证取消、覆盖与大文件保存。
 
+2026-06-23 ProIcons 统一替换后，源码字符图标扫描为 0，28 个使用中的 SVG 均通过 XML 解析，旧 `tab_*.svg` 引用为 0；仓库内 `entry/build`、`entry/.cxx` 已由 `clean_project.ps1 -BuildOnly` 清理，完整静态审计为 45/45。当前受限执行环境不允许写 `%VSCODE_ROOT%\99_Temp`，Mock stage 创建被系统拒绝。因此本轮没有新 HAP 哈希、安装或设备渲染证据，旧安装包不能代表 ProIcons 修改。恢复外部目录写权限后必须重新运行 Mock/真实构建、安装和四标签/设置/SFTP 图标冒烟。
+
+三类转发新增源码随后使用本机 OHOS arm64 与 x86_64 Clang、固定 libssh2 `1.11.1` 头文件执行 `-fsyntax-only`，real core、Mock core 与 N-API 翻译单元均通过。这不是链接、HAP 或流量证据；权限恢复后需分别验证：`-L` 双向 TCP 字节流；`-D` IPv4/IPv6/域名 SOCKS5 CONNECT；`-R` 服务器回环监听到本机服务；多连接并发；单条移除和 session 断开后的端口/channel 释放。
+
+同轮加入 libssh2 keepalive、终端 EOF/传输错误检测、5 秒至 5 分钟指数退避、立即重连、HarmonyOS 网络离线暂停/恢复唤醒/5 分钟兜底轮询和旧 session 清理，并增加 `GET_NETWORK_INFO`。加入 keepalive 后 Native Core 继续通过 arm64/x86_64 `-fsyntax-only`；ArkTS 状态机因 `99_Temp` 不可写尚未经过 Hvigor 编译。后续设备测试需覆盖长时间空闲、正常 `exit` 不重连、网络断开暂停、恢复后立即重试、HostKey 变化停止自动重试、手动立即重连、关闭页面取消重连，以及重连前后监听端口和 PID/faultlogger。
+
+终端解析器随后升级为带样式单元格的 VT 状态机。`scripts/test_terminal_emulator.ps1` 的严格语义检查为 0 错误，并复验光标覆盖、16 色、256 色、RGB 背景、备用屏隔离/恢复、OSC/C1 标题与控制字符清理、DSR/DA 回复、组合/双宽字符、有界滚动、DEC 线条字符和确定性控制序列 fuzz，13 项功能检查全部 PASS。TerminalPage 已编码样式 `Span`、复制、application cursor、bracketed paste、横向控制键和视口→PTY resize，但 ArkUI DSL 必须通过下一次 Hvigor/HAP 构建和模拟器安装后才算编译验证；旧 HAP 不代表这些修改。
+
+SFTP 大文件路径已修正两个源码级风险：Native 上传/下载不再把 profile timeout 当作整次传输总时限，而是在每个成功块后刷新空闲 deadline；下载在成功返回前检查本地 flush。Document URI 与私有缓存之间的复制也由同步 `copyFileSync` 改为 Promise `fs.copyFile`，避免在 ArkUI 线程同步搬运大文件。Native 修改继续通过 arm64/x86_64 语法检查；尚无新 HAP、大文件哈希、取消或断点恢复证据。
+
 ## 设备验证
 
 未来真实 Core HAP 必须分别安装到 arm64 真机和 x86_64 模拟器，核对 SHA256、mtime、版本、双 ABI、设备 `updateTime`、冷启动 PID 和安全筛选后的 hilog；正式发布仍必须使用独立签名。测试凭据只在运行内存输入；不保存原始含敏感字段日志。

@@ -99,19 +99,21 @@ export class NativeSshCore {
     return parseResult(await nativeSsh.sftpChmod(sessionId, path, mode));
   }
 
-  static addLocalForward(sessionId: string, localPort: number, remoteHost: string, remotePort: number): string {
-    return nativeSsh.addLocalForward(sessionId, localPort, remoteHost, remotePort);
+  static async addLocalForward(sessionId: string, localPort: number, remoteHost: string,
+    remotePort: number): Promise<string> {
+    return await nativeSsh.addLocalForward(sessionId, localPort, remoteHost, remotePort);
   }
 
-  static addRemoteForward(sessionId: string, remotePort: number, localHost: string, localPort: number): string {
-    return nativeSsh.addRemoteForward(sessionId, remotePort, localHost, localPort);
+  static async addRemoteForward(sessionId: string, remotePort: number, localHost: string,
+    localPort: number): Promise<string> {
+    return await nativeSsh.addRemoteForward(sessionId, remotePort, localHost, localPort);
   }
 
-  static addDynamicForward(sessionId: string, localPort: number): string {
-    return nativeSsh.addDynamicForward(sessionId, localPort);
+  static async addDynamicForward(sessionId: string, localPort: number): Promise<string> {
+    return await nativeSsh.addDynamicForward(sessionId, localPort);
   }
 
-  static removeForward(forwardId: string): NativeJsonResult {
-    return parseResult(nativeSsh.removeForward(forwardId));
+  static async removeForward(forwardId: string): Promise<NativeJsonResult> {
+    return parseResult(await nativeSsh.removeForward(forwardId));
   }
 }

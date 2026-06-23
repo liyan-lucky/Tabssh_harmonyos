@@ -12,7 +12,7 @@
 | SettingsActivity | `pages/SettingsPage.ets` |
 | SSHConnection / JSch | `entry/src/main/cpp/native_ssh_*` + libssh2 |
 | SSHSessionManager | `TerminalSessionManager.ets` + native session map |
-| TermuxBridge / TerminalEmulator | 后续自研 ANSI/VT 解析和终端渲染 |
+| TermuxBridge / TerminalEmulator | ArkTS VT 单元格解析器与 Span 样式渲染；复杂 TUI/IME/设备验收仍缺 |
 | Room DB | 后续换成 RDB Store |
 | Android Keystore | 后续换成 HUKS / ASSET |
 | WorkManager | 后续换成 HarmonyOS 后台任务能力 |
@@ -28,10 +28,10 @@
 | 密码/私钥/keyboard-interactive | RSA/ECDSA/Ed25519/DSA、OpenSSH/PEM/PKCS#8/PuTTY、导入/生成 | 密码/文件私钥 libssh2 源码编码中；其余未开始 |
 | HostKey 安全 | SHA256 TOFU、变更阻断、可信核对、known_hosts | 阻断/确认 UI 与 native 源码编码中；待真实验证和持久化 |
 | Shell/PTY | 非阻塞读写、resize、keepalive、IPv4/IPv6、超时/取消 | libssh2 源码编码中；待真实构建与双设备验证 |
-| 终端模拟器 | VT100/ANSI/xterm-256、颜色、选择复制、滚动、搜索、OSC、vim/tmux | 基础无颜色网格/轮询已做 Mock 冒烟；完整兼容未开始 |
+| 终端模拟器 | VT100/ANSI/xterm-256、颜色、选择复制、滚动、搜索、OSC、vim/tmux | SGR 16/256/RGB、样式 Span、备用屏、OSC、宽字符、复制、滚动历史和 PTY resize 已编码并通过内存测试；搜索、完整键盘/IME、鼠标协议及复杂 TUI 设备回归未完成 |
 | 自定义键盘/硬件键盘 | 1–5 行、重排、Ctrl/Alt、AltGr、修饰键编码、F1–F12 | 六个基础键入口；其余未开始 |
 | SFTP | 浏览、上传/下载进度、编辑、chmod、删除、重命名、哈希 | 真实列目录源码编码中；写操作/UI/哈希未开始 |
-| 端口转发 | local、remote、dynamic SOCKS5、生命周期、真实流量 | UI 禁止 Mock 成功；真实 worker 未开始 |
+| 端口转发 | local、remote、dynamic SOCKS5、生命周期、真实流量 | 三类真实 worker、异步 N-API、Mock 拒绝和断开清理已编码；待双架构构建与逐字节流量验收 |
 | 代理/跳板 | ProxyHTTP/SOCKS4/SOCKS5、ProxyJump、多跳 | 未开始 |
 | SSH config | Import、RemoteCommand、SendEnv、RequestTTY、ProxyJump | 未开始 |
 | 会话增强 | post-connect、tmux/screen/zellij、录制/回放、宏、片段 | 字段骨架；其余未开始 |

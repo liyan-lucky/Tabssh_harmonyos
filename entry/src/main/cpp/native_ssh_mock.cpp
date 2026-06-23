@@ -23,7 +23,6 @@ struct ChannelState {
 std::mutex g_mutex;
 std::map<std::string, SessionState> g_sessions;
 std::map<std::string, ChannelState> g_channels;
-std::map<std::string, std::string> g_forwards;
 uint64_t g_counter = 1;
 
 std::string NextId(const std::string& prefix)
@@ -237,41 +236,24 @@ NativeResult SftpChmod(const std::string&, const std::string&, int32_t)
     return {false, 501, "Mock SFTP chmod is disabled", ""};
 }
 
-std::string AddLocalForward(const std::string& sessionId, int32_t localPort, const std::string& remoteHost, int32_t remotePort)
+std::string AddLocalForward(const std::string&, int32_t, const std::string&, int32_t)
 {
-    std::string id = NextId("lfwd");
-    std::lock_guard<std::mutex> lock(g_mutex);
-    std::ostringstream oss;
-    oss << "local:" << sessionId << ":" << localPort << ":" << remoteHost << ":" << remotePort;
-    g_forwards[id] = oss.str();
-    return id;
+    return "";
 }
 
-std::string AddRemoteForward(const std::string& sessionId, int32_t remotePort, const std::string& localHost, int32_t localPort)
+std::string AddRemoteForward(const std::string&, int32_t, const std::string&, int32_t)
 {
-    std::string id = NextId("rfwd");
-    std::lock_guard<std::mutex> lock(g_mutex);
-    std::ostringstream oss;
-    oss << "remote:" << sessionId << ":" << remotePort << ":" << localHost << ":" << localPort;
-    g_forwards[id] = oss.str();
-    return id;
+    return "";
 }
 
-std::string AddDynamicForward(const std::string& sessionId, int32_t localPort)
+std::string AddDynamicForward(const std::string&, int32_t)
 {
-    std::string id = NextId("dfwd");
-    std::lock_guard<std::mutex> lock(g_mutex);
-    std::ostringstream oss;
-    oss << "dynamic:" << sessionId << ":" << localPort;
-    g_forwards[id] = oss.str();
-    return id;
+    return "";
 }
 
-NativeResult RemoveForward(const std::string& forwardId)
+NativeResult RemoveForward(const std::string&)
 {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    g_forwards.erase(forwardId);
-    return {true, 0, "forward removed", ""};
+    return {false, 501, "Mock port forwarding is disabled", ""};
 }
 
 std::string ToJson(const NativeResult& result)

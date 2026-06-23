@@ -3,6 +3,7 @@
     { "name": "app_name", "value": "OpenTabSsh" },
     { "name": "module_desc", "value": "OpenTabSsh SSH client" },
     { "name": "EntryAbility_desc", "value": "OpenTabSsh main ability" },
-    { "name": "permission_internet_reason", "value": "用于连接 SSH/SFTP 服务器" }
+    { "name": "permission_internet_reason", "value": "用于连接 SSH/SFTP 服务器" },
+    { "name": "permission_network_reason", "value": "用于在网络恢复后安全重连 SSH 会话" }
   ]
 }

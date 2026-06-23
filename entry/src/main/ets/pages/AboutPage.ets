@@ -1,5 +1,6 @@
 import router from '@ohos.router';
 import { NativeSshCore } from '../common/native/NativeSshCore';
+import { createIconColorFilter } from '../common/IconUtils';
 
 @Entry
 @Component
@@ -13,7 +14,8 @@ struct AboutPage {
   build() {
     Column() {
       Row() {
-        Text('‹').fontSize(34).fontColor('#111827').width(44).onClick(() => router.back())
+        Image($rawfile('ft_back.svg')).width(24).height(24).margin({ left: 10, right: 10 })
+          .colorFilter(createIconColorFilter('#111827')).onClick(() => router.back())
         Text('关于').fontSize(22).fontWeight(FontWeight.Bold).fontColor('#111827')
           .layoutWeight(1).textAlign(TextAlign.Center)
         Blank().width(44)
@@ -31,7 +33,7 @@ struct AboutPage {
         Text('开发目标').fontSize(17).fontWeight(FontWeight.Bold).fontColor('#111827').width('100%')
         Text('对齐 TabSSH Android 的多标签终端、HostKey 验证、密码/私钥认证、SFTP、端口转发、重连与安全清理。')
           .fontSize(14).fontColor('#64748B').width('100%')
-        Text('当前仍未完成：SFTP 写操作、三类端口转发、完整 xterm 渲染、重连退避和 arm64 真机验证。')
+        Text('当前仍需验收：三类转发真实流量、完整 xterm、网络感知重连和 arm64 真机。')
           .fontSize(13).fontColor('#D97706').width('100%')
       }
       .width('92%').padding(18).backgroundColor(Color.White).borderRadius(18).margin({ top: 12 })

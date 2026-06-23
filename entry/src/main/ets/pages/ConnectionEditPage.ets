@@ -117,11 +117,13 @@ struct ConnectionEditPage {
             .margin({ bottom: 10 })
 
           Row() {
-            Button(this.profile.authType === AUTH_PASSWORD ? '✓ 密码' : '密码')
+            Button('密码')
               .layoutWeight(1)
+              .backgroundColor(this.profile.authType === AUTH_PASSWORD ? '#0A84FF' : '#94A3B8')
               .onClick(() => this.profile.authType = AUTH_PASSWORD)
-            Button(this.profile.authType === AUTH_PRIVATE_KEY ? '✓ 私钥' : '私钥')
+            Button('私钥')
               .layoutWeight(1)
+              .backgroundColor(this.profile.authType === AUTH_PRIVATE_KEY ? '#0A84FF' : '#94A3B8')
               .margin({ left: 8 })
               .onClick(() => this.profile.authType = AUTH_PRIVATE_KEY)
           }

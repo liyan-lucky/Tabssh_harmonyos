@@ -23,20 +23,24 @@
 - 上述异步真实 HAP 已成功覆盖安装到 x86_64 模拟器；HostKey/认证/PTY/SFTP 和无 appfreeze 回归仍待取证。
 - x86_64 模拟器已通过本机隔离测试端的真实 SSH 流量回归：异步握手保持 UI 响应，HostKey 首次/变化阻断、密码认证、PTY、命令读写、ANSI 渲染和真实 SFTP 根目录列表均通过，无新增 faultlogger 记录。
 - 外部 IPv6 Windows OpenSSH 已进一步通过 ECDSA HostKey、密码认证、PTY、CR 命令提交/真实输出、SFTP 列表、异步关闭和无重复 HostKey 提示的再次连接；无新增 faultlogger 记录。
-- 底部主菜单已参照 RustDesk HarmonyOS 改为安全区内的半透明模糊悬浮胶囊，四个 SVG 图标和选中态均已通过 x86_64 模拟器 UI hierarchy/点击切换验证。
+- 底部主菜单已参照 RustDesk HarmonyOS 改为安全区内的半透明模糊悬浮胶囊；旧自绘底栏 SVG 已替换为 ProIcons 的 tune/network/monitor/person 资产。旧版本的点击切换证据仍有效，最新 ProIcons 资源包待本轮重新构建安装后更新证据。
 - 四张参考图对应的连接入口页、设备监控空状态、我的/设置页和系统设置二级页已实现；主要菜单行统一降为 54–62 vp，模拟器逐页 UI hierarchy 验证通过。
 - 真实 SFTP 已增加异步上传、下载、建目录、删除、重命名和 chmod；回环内存测试端完成上传→下载逐字节校验、目录、改名、`0644`与清理证据。
-- 有界 2,000 行历史的基础 ANSI/VT 字符网格、120 ms 输出轮询和 Ctrl-C/Ctrl-D/Esc/Tab/方向键入口；尚不是完整 xterm 兼容终端。
+- SFTP 数据泵已把网络超时从“整次传输总时限”改为每次成功读写后续期的“空闲时限”，下载结束增加本地 flush 校验；系统 URI 与应用缓存之间改用异步 `fs.copyFile`，避免大文件同步复制阻塞 ArkUI。仍缺真实大文件、取消和中断恢复证据。
+- 三类转发已编码：本地 `-L` 与动态 `-D` 只监听 `127.0.0.1`，动态转发实现无认证 SOCKS5 CONNECT（IPv4/IPv6/域名），远程 `-R` 请求服务器回环监听；多连接 worker、异步 N-API、显式移除和 session 断开前清理已接入。当前通过 arm64 与 x86_64 OHOS Clang `-fsyntax-only`，仍需真实构建与三类逐字节流量证据。
+- 终端已编码 libssh2 keepalive、断线检测和网络感知自动重连：仅曾成功连接的 tab 参与，初始失败/认证失败/HostKey 待确认/正常 shell 退出不自动重试；退避为 5 秒起步、指数增长、5 分钟封顶，支持“立即重连”，离线时暂停，系统 `netAvailable` 恢复时立即重试，并有 5 分钟 `hasDefaultNet` 兜底轮询。重建 session/PTY 前先释放旧 channel、forward 和 session；keepalive 与 native 改动通过双 ABI语法检查，仍缺 HAP 编译及设备断网/恢复证据。
+- 有界 2,000 行历史的 VT 单元格解析器已编码：常用光标/擦除/插删/滚动区、SGR 16/256/RGB 色、粗体/暗色/斜体/下划线/反色/隐藏/删除线、备用屏、OSC 标题、DSR/DA 回复、application cursor、bracketed paste、组合字符和 CJK/Emoji 双宽字符；TerminalPage 已接入样式 `Span`、复制、横向控制键和视口驱动的 PTY resize。独立内存测试全部通过，但最新 UI 尚未经过 HAP 编译/设备复杂 TUI 回归，不能称完整 xterm。
+- 启动、导航、页面入口、文件类型、返回/刷新和方向键图标已统一为 `docs/PROICONS_ICONS.md` 登记的 ProIcons SVG；源码不再使用 Emoji/Unicode 字符充当图标。
 
 以上 SSH 密码认证、PTY/命令与 SFTP 列目已有真实外部服务器证据；SFTP 写操作已有隔离回环端证据。私钥认证、三类转发、大文件/中断恢复和 arm64 真机仍不能标记完成。
 
 ## 未实现（发布阻塞）
 
 - 私钥认证、外部服务器与 arm64 真机端到端证据；HUKS/ASSET 安全存储。
-- ANSI/VT/xterm 终端解析、渲染、键盘与滚动历史。
+- 终端剩余兼容：完整键盘/IME 逐键输入、选择与搜索、鼠标协议、更多 DEC/xterm 边界、vim/tmux/htop/nano 和设备端性能/渲染回归。
 - SFTP 大文件、中断恢复、外部服务器写操作及系统文件保存选择器的稳定回归。
-- local/remote/dynamic forwarding 的真实流量链路。
+- local/remote/dynamic forwarding 的真实 HAP 与逐字节流量链路证据；源码实现不能替代验收。
 - RDB 持久化、代理/跳板机、多标签复用、后台保持。
-- 异步操作的取消、超时、重连退避、错误恢复和更完整的断开清理。
+- 异步操作的用户取消、重连/错误恢复设备证据和更完整的压力清理。
 - arm64 真机与 x86_64 模拟器真实 SSH 端到端验收。
 - 独立 HarmonyOS 签名配置与 signed HAP 安装验证。

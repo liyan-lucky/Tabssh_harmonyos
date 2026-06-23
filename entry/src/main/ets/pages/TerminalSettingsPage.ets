@@ -1,5 +1,6 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
+import { createIconColorFilter } from '../common/IconUtils';
 
 @Entry
 @Component
@@ -15,15 +16,18 @@ struct TerminalSettingsPage {
   }
 
   @Builder
-  OptionRow(icon: string, title: string, value: string, color: string, action: () => void,
+  OptionRow(icon: Resource, title: string, value: string, color: string, action: () => void,
     showDivider: boolean = true) {
     Column() {
       Row() {
-        Row() { Text(icon).fontSize(18).fontWeight(FontWeight.Bold).fontColor(Color.White) }
+        Row() {
+          Image(icon).width(21).height(21).colorFilter(createIconColorFilter('#FFFFFF'))
+        }
           .width(36).height(36).justifyContent(FlexAlign.Center).backgroundColor(color).borderRadius(10).margin({ right: 12 })
         Text(title).fontSize(16).fontColor(this.textPrimary).layoutWeight(1)
         Text(value).fontSize(13).fontColor(this.textSecond).margin({ right: 8 })
-        Text('›').fontSize(26).fontColor('#94A3B8')
+        Image($rawfile('ft_up.svg')).width(18).height(18).rotate({ angle: 90 })
+          .colorFilter(createIconColorFilter('#94A3B8'))
       }
       .width('100%').height(54).padding({ left: 14, right: 14 }).onClick(action)
       if (showDivider) { Divider().color(this.lineColor).margin({ left: 62 }) }
@@ -33,7 +37,8 @@ struct TerminalSettingsPage {
   build() {
     Column() {
       Row() {
-        Text('‹').fontSize(34).fontColor(this.textPrimary).width(44).onClick(() => router.back())
+        Image($rawfile('ft_back.svg')).width(24).height(24).margin({ left: 10, right: 10 })
+          .colorFilter(createIconColorFilter(this.textPrimary)).onClick(() => router.back())
         Text('终端设置').fontSize(22).fontWeight(FontWeight.Bold).fontColor(this.textPrimary)
           .layoutWeight(1).textAlign(TextAlign.Center)
         Blank().width(44)
@@ -41,12 +46,15 @@ struct TerminalSettingsPage {
       .width('100%').height(64).padding({ left: 14, right: 14, top: 8 })
 
       Column() {
-        this.OptionRow('T', '字体', 'Monospace', '#0A84FF', () => this.toast('字体选择器接入中'))
-        this.OptionRow('◐', '终端主题', '深色', '#6554D9', () => this.toast('当前主题：深色'))
-        this.OptionRow('T', '字号', this.fontSizeLabel, '#20B8E6', () => {
+        this.OptionRow($rawfile('settings_display.svg'), '字体', 'Monospace', '#0A84FF',
+          () => this.toast('字体选择器接入中'))
+        this.OptionRow($rawfile('settings_palette.svg'), '终端主题', '深色', '#6554D9',
+          () => this.toast('当前主题：深色'))
+        this.OptionRow($rawfile('settings_tune.svg'), '字号', this.fontSizeLabel, '#20B8E6', () => {
           this.fontSizeLabel = this.fontSizeLabel === '中' ? '小' : '中';
         })
-        this.OptionRow('⌨', '扩展键盘', 'Ctrl / 方向键', '#FF9F0A', () => this.toast('终端快捷键已在会话页启用'), false)
+        this.OptionRow($rawfile('settings_terminal.svg'), '扩展键盘', 'Ctrl / 方向键', '#FF9F0A',
+          () => this.toast('终端快捷键已在会话页启用'), false)
       }
       .width('92%')
       .backgroundColor(Color.White)

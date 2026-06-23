@@ -5,6 +5,9 @@ export interface TerminalTab {
   sessionId: string;
   channelId: string;
   connected: boolean;
+  everConnected: boolean;
+  reconnectAttempt: number;
+  reconnecting: boolean;
   statusCode: number;
   statusMessage: string;
   pendingHostKey: string;

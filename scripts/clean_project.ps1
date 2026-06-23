@@ -1,5 +1,6 @@
 param(
-  [switch]$IncludeExternalBuild
+  [switch]$IncludeExternalBuild,
+  [switch]$BuildOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,10 +29,14 @@ function Remove-ProjectGeneratedPath([string]$Path, [string]$AllowedRoot) {
   Write-Host "Removed $full"
 }
 
-$repoTargets = @(
-  ".appanalyzer", ".codeartsdoer", ".hvigor", ".hvigor_home", ".idea", ".vscode",
-  "build", "entry\build", "entry\.cxx", "entry\.preview", "oh_modules", "entry\oh_modules", "node_modules"
-)
+$repoTargets = if ($BuildOnly) {
+  @("build", "entry\build", "entry\.cxx")
+} else {
+  @(
+    ".appanalyzer", ".codeartsdoer", ".hvigor", ".hvigor_home", ".idea", ".vscode",
+    "build", "entry\build", "entry\.cxx", "entry\.preview", "oh_modules", "entry\oh_modules", "node_modules"
+  )
+}
 foreach ($relative in $repoTargets) {
   Remove-ProjectGeneratedPath (Join-Path $projectRoot $relative) $projectRoot
 }

@@ -46,7 +46,11 @@ enum class AsyncOperation {
     SFTP_MKDIR,
     SFTP_REMOVE,
     SFTP_RENAME,
-    SFTP_CHMOD
+    SFTP_CHMOD,
+    ADD_LOCAL_FORWARD,
+    ADD_REMOTE_FORWARD,
+    ADD_DYNAMIC_FORWARD,
+    REMOVE_FORWARD
 };
 
 struct AsyncContext {
@@ -115,6 +119,20 @@ void ExecuteAsync(napi_env, void* rawContext)
             case AsyncOperation::SFTP_CHMOD:
                 context->result = opentabssh::ToJson(opentabssh::SftpChmod(
                     context->first, context->second, context->firstNumber));
+                break;
+            case AsyncOperation::ADD_LOCAL_FORWARD:
+                context->result = opentabssh::AddLocalForward(
+                    context->first, context->firstNumber, context->second, context->secondNumber);
+                break;
+            case AsyncOperation::ADD_REMOTE_FORWARD:
+                context->result = opentabssh::AddRemoteForward(
+                    context->first, context->firstNumber, context->second, context->secondNumber);
+                break;
+            case AsyncOperation::ADD_DYNAMIC_FORWARD:
+                context->result = opentabssh::AddDynamicForward(context->first, context->firstNumber);
+                break;
+            case AsyncOperation::REMOVE_FORWARD:
+                context->result = opentabssh::ToJson(opentabssh::RemoveForward(context->first));
                 break;
         }
     } catch (const std::exception&) {
@@ -349,7 +367,8 @@ napi_value AddLocalForward(napi_env env, napi_callback_info info)
     int32_t localPort = argc > 1 ? GetIntArg(env, args[1]) : 0;
     std::string remoteHost = argc > 2 ? GetStringArg(env, args[2]) : "127.0.0.1";
     int32_t remotePort = argc > 3 ? GetIntArg(env, args[3]) : 0;
-    return MakeString(env, opentabssh::AddLocalForward(sessionId, localPort, remoteHost, remotePort));
+    return QueueAsync(env, AsyncOperation::ADD_LOCAL_FORWARD, std::move(sessionId), std::move(remoteHost), "",
+        localPort, remotePort);
 }
 
 napi_value AddRemoteForward(napi_env env, napi_callback_info info)
@@ -361,7 +380,8 @@ napi_value AddRemoteForward(napi_env env, napi_callback_info info)
     int32_t remotePort = argc > 1 ? GetIntArg(env, args[1]) : 0;
     std::string localHost = argc > 2 ? GetStringArg(env, args[2]) : "127.0.0.1";
     int32_t localPort = argc > 3 ? GetIntArg(env, args[3]) : 0;
-    return MakeString(env, opentabssh::AddRemoteForward(sessionId, remotePort, localHost, localPort));
+    return QueueAsync(env, AsyncOperation::ADD_REMOTE_FORWARD, std::move(sessionId), std::move(localHost), "",
+        remotePort, localPort);
 }
 
 napi_value AddDynamicForward(napi_env env, napi_callback_info info)
@@ -371,7 +391,7 @@ napi_value AddDynamicForward(napi_env env, napi_callback_info info)
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string sessionId = argc > 0 ? GetStringArg(env, args[0]) : "";
     int32_t localPort = argc > 1 ? GetIntArg(env, args[1]) : 0;
-    return MakeString(env, opentabssh::AddDynamicForward(sessionId, localPort));
+    return QueueAsync(env, AsyncOperation::ADD_DYNAMIC_FORWARD, std::move(sessionId), "", "", localPort);
 }
 
 napi_value RemoveForward(napi_env env, napi_callback_info info)
@@ -380,7 +400,7 @@ napi_value RemoveForward(napi_env env, napi_callback_info info)
     napi_value args[1] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     std::string forwardId = argc > 0 ? GetStringArg(env, args[0]) : "";
-    return MakeString(env, opentabssh::ToJson(opentabssh::RemoveForward(forwardId)));
+    return QueueAsync(env, AsyncOperation::REMOVE_FORWARD, std::move(forwardId));
 }
 
 napi_value Init(napi_env env, napi_value exports)

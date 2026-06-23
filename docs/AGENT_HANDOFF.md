@@ -34,6 +34,16 @@ read/write/resize/closeChannel/disconnect 已继续迁移到 async work / Promis
 
 当前最新真实 HAP 为 `11,822,274` bytes / SHA256 `4E3195BF26531FD4377C6F8D6261C6B2E460E9CF890266595079578586219CEB`，双 ABI native SHA256 为 arm64 `D0B8E0AF09729F4013D46B418E8DDF68FAF4CFB4BD544EE2605BB22FF6F20B60`、x86_64 `360D226AB9CD237E4C8A28539D3FED3E7B55E2523EB9C20287BB859D1F9769A5`，已覆盖安装。SFTP 已增加上传/下载/建目录/删除/改名/chmod 的 async N-API 和紧凑 UI；回环内存端验证了逐字节上传→下载回读、建目录、改名、`0644`、文件/空目录删除。系统“保存”选择器在当前自动化模拟器上仍有 Promise 不返回问题，须真机复验。
 
+2026-06-23 图标来源规则已收紧：启动图标、底部导航、四张参考页、SFTP、返回/刷新和终端方向键均改用可追溯的 ProIcons SVG，旧 `tab_*.svg` 自绘资源已删除，字符/Emoji 图标已移除。28 个使用中的 SVG 通过 XML 解析，完整静态审计 45/45；当前执行环境无 `99_Temp` 写权限，尚无新 HAP 或安装证据。来源、组件语义和映射见 `PROICONS_ICONS.md`。
+
+同轮继续编码三类真实端口转发：libssh2 direct-tcpip 本地转发、服务器回环 remote-forward、无认证 SOCKS5 CONNECT 动态转发，均已接入多连接 worker、async N-API、Mock 明确拒绝和断开前清理。arm64 与 x86_64 OHOS Clang `-fsyntax-only` 均已通过；尚未构建 HAP，也没有三类真实流量证据，禁止标记完成。
+
+终端重连状态机也已编码：轮询发送 libssh2 keepalive，仅已成功会话自动重试，5 秒指数退避到 5 分钟，正常 EOF/认证/HostKey 错误不循环，用户关闭会取消定时器；HarmonyOS 网络回调在离线时暂停、恢复时立即唤醒，并有 5 分钟兜底轮询。重连前释放旧 channel/forward/session 并重建 HostKey/认证/PTY。keepalive 后的 Native Core 已通过 arm64/x86_64 语法检查，尚缺 ArkTS/HAP 构建、长时间空闲和断网恢复设备证据。
+
+终端渲染同轮继续升级：`TerminalEmulator.ets` 已支持常用 VT 光标/擦除/插删/滚动区、SGR 16/256/RGB、文本属性、备用屏、OSC/C1 标题、DSR/DA、DEC 线条字符、application cursor、bracketed paste、组合字符与双宽字符；TerminalPage 已接样式 Span、复制、横向控制键和动态 PTY resize。`scripts/test_terminal_emulator.ps1` 的严格语义检查及 13 类功能/确定性 fuzz 检查通过，静态审计更新为 67/67。受 `99_Temp` 写权限限制，ArkUI DSL、HAP、模拟器上的 vim/tmux/htop/nano 与性能仍未验证，禁止写成完整 xterm 已完成。
+
+SFTP 大文件路径也做了源码级加固：Native 每个成功数据块刷新空闲 deadline，下载返回前检查本地 flush；Document URI 与 cache 的复制改为异步 `fs.copyFile`。双 ABI native 语法检查通过，但尚无新 HAP、大文件哈希、取消或断点恢复证据。
+
 用户曾在 DevEco Studio 构建过，但签名信息属于本机私有配置。首次提交前已扫描项目和暂存区：没有证书、密钥文件或签名口令；`build-profile.json5` 的 `signingConfigs` 为空。`.idea`、`signing/` 与常见证书/密钥扩展名全部 Git 忽略，后续不得把 DevEco 生成的签名材料带入仓库。
 
 三份上游参考源码已浅克隆到 `%VSCODE_ROOT%\99_Temp\tabssh_reference`：Web `54298277...`、Android `0c455b8b...`、Desktop `79123c85...`。它们只用于行为/UI/协议对照，不是本仓库子模块或构建输入，详见 `UPSTREAM_REFERENCES.md`。
@@ -52,3 +62,4 @@ read/write/resize/closeChannel/disconnect 已继续迁移到 async work / Promis
 - `%VSCODE_ROOT%\99_Temp` 是多项目共享目录，禁止整体删除、移动或按扩展名全局清理；任何 APK 一律不得删除。
 - 只能清理 `docs/WORKSPACE_PATHS.md` 列明且明确归属本项目的可再生目录。
 - 不在仓库根保留 `.hvigor`、`.cxx`、build、崩溃转储、IDE/AI 工具缓存或散落日志。
+- 应用图标只能使用 `docs/PROICONS_ICONS.md` 登记的 ProIcons 资产，禁止新增自绘 SVG、Emoji 或字符图标。

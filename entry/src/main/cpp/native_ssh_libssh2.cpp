@@ -6,10 +6,13 @@
 #include <libssh2_sftp.h>
 
 #include <algorithm>
+#include <arpa/inet.h>
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <cctype>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -20,11 +23,14 @@
 #include <memory>
 #include <mutex>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <sstream>
 #include <string>
 #include <sys/socket.h>
+#include <thread>
 #include <unistd.h>
+#include <vector>
 
 namespace opentabssh {
 namespace {
@@ -35,7 +41,6 @@ constexpr int32_t kAuthenticationFailed = 1003;
 constexpr int32_t kTimeout = 1004;
 constexpr int32_t kInvalidProfile = 1005;
 constexpr int32_t kNotConnected = 1006;
-constexpr int32_t kNotImplemented = 1501;
 
 struct ProfileConfig {
     std::string host;
@@ -59,6 +64,7 @@ struct SessionState {
     bool handshakeComplete = false;
     bool hostKeyConfirmed = false;
     bool authenticated = false;
+    bool disconnecting = false;
     std::string observedHostKey;
     std::string observedHostKeyAlgorithm;
 };
@@ -68,6 +74,30 @@ struct ChannelState {
     LIBSSH2_CHANNEL* channel = nullptr;
     int32_t cols = 80;
     int32_t rows = 24;
+};
+
+enum class ForwardKind {
+    LOCAL,
+    REMOTE,
+    DYNAMIC
+};
+
+struct ForwardState {
+    std::string id;
+    std::string sessionId;
+    ForwardKind kind = ForwardKind::LOCAL;
+    std::string targetHost;
+    int32_t bindPort = 0;
+    int32_t targetPort = 0;
+    int listenFd = -1;
+    LIBSSH2_LISTENER* remoteListener = nullptr;
+    std::atomic<bool> stopping{false};
+    std::atomic<int32_t> activeConnections{0};
+    std::mutex connectionMutex;
+    std::condition_variable connectionCondition;
+    std::mutex stopMutex;
+    bool stopped = false;
+    std::thread worker;
 };
 
 class Libssh2Runtime {
@@ -86,6 +116,8 @@ Libssh2Runtime g_runtime;
 std::mutex g_mutex;
 std::map<std::string, std::unique_ptr<SessionState>> g_sessions;
 std::map<std::string, ChannelState> g_channels;
+std::mutex g_forwardMutex;
+std::map<std::string, std::shared_ptr<ForwardState>> g_forwards;
 uint64_t g_counter = 1;
 
 void SecureClear(std::string& value)
@@ -525,7 +557,9 @@ NativeResult Authenticate(SessionState& state)
 SessionState* FindAuthenticatedSession(const std::string& sessionId)
 {
     auto iterator = g_sessions.find(sessionId);
-    if (iterator == g_sessions.end() || !iterator->second->authenticated) return nullptr;
+    if (iterator == g_sessions.end() || !iterator->second->authenticated || iterator->second->disconnecting) {
+        return nullptr;
+    }
     return iterator->second.get();
 }
 
@@ -599,11 +633,508 @@ NativeResult SftpSimpleResult(SessionState& session, int result, const std::stri
     return {false, static_cast<int32_t>(result), SessionError(session.session, failureMessage), ""};
 }
 
+bool ValidForwardPort(int32_t port)
+{
+    return port >= 1 && port <= 65535;
+}
+
+bool SetNonBlocking(int socketFd)
+{
+    int flags = fcntl(socketFd, F_GETFL, 0);
+    return flags >= 0 && fcntl(socketFd, F_SETFL, flags | O_NONBLOCK) == 0;
+}
+
+int CreateLoopbackListener(int32_t port)
+{
+    int socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (socketFd < 0) return -1;
+    int enabled = 1;
+    setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled));
+    fcntl(socketFd, F_SETFD, FD_CLOEXEC);
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port = htons(static_cast<uint16_t>(port));
+    if (bind(socketFd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0 ||
+        listen(socketFd, 16) != 0 || !SetNonBlocking(socketFd)) {
+        close(socketFd);
+        return -1;
+    }
+    return socketFd;
+}
+
+int SocketSendFlags()
+{
+#ifdef MSG_NOSIGNAL
+    return MSG_NOSIGNAL;
+#else
+    return 0;
+#endif
+}
+
+bool WaitLocalSocket(int socketFd, short events, const std::chrono::steady_clock::time_point& deadline,
+    const std::atomic<bool>& stopping)
+{
+    while (!stopping.load()) {
+        int remaining = RemainingMilliseconds(deadline);
+        if (remaining <= 0) return false;
+        pollfd descriptor{socketFd, events, 0};
+        int result = poll(&descriptor, 1, std::min(remaining, 100));
+        if (result < 0 && errno == EINTR) continue;
+        if (result < 0 || (result > 0 && (descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0)) {
+            return false;
+        }
+        if (result > 0 && (descriptor.revents & events) != 0) return true;
+    }
+    return false;
+}
+
+bool ReadSocketExact(int socketFd, unsigned char* output, size_t length,
+    const std::shared_ptr<ForwardState>& state, int timeoutMilliseconds = 10000)
+{
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMilliseconds);
+    size_t offset = 0;
+    while (offset < length && !state->stopping.load()) {
+        ssize_t received = recv(socketFd, output + offset, length - offset, 0);
+        if (received > 0) {
+            offset += static_cast<size_t>(received);
+            continue;
+        }
+        if (received == 0) return false;
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return false;
+        if (!WaitLocalSocket(socketFd, POLLIN, deadline, state->stopping)) return false;
+    }
+    return offset == length;
+}
+
+bool WriteSocketExact(int socketFd, const unsigned char* input, size_t length,
+    const std::shared_ptr<ForwardState>& state, int timeoutMilliseconds = 10000)
+{
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMilliseconds);
+    size_t offset = 0;
+    while (offset < length && !state->stopping.load()) {
+        ssize_t sent = send(socketFd, input + offset, length - offset, SocketSendFlags());
+        if (sent > 0) {
+            offset += static_cast<size_t>(sent);
+            continue;
+        }
+        if (sent == 0) return false;
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return false;
+        if (!WaitLocalSocket(socketFd, POLLOUT, deadline, state->stopping)) return false;
+    }
+    return offset == length;
+}
+
+LIBSSH2_CHANNEL* OpenDirectChannel(const std::shared_ptr<ForwardState>& state,
+    const std::string& host, int32_t port, int32_t originPort)
+{
+    int timeoutMilliseconds = 15000;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        SessionState* session = FindAuthenticatedSession(state->sessionId);
+        if (session == nullptr) return nullptr;
+        timeoutMilliseconds = session->profile.timeoutMilliseconds;
+    }
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMilliseconds);
+    while (!state->stopping.load() && RemainingMilliseconds(deadline) > 0) {
+        LIBSSH2_CHANNEL* channel = nullptr;
+        int error = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            SessionState* session = FindAuthenticatedSession(state->sessionId);
+            if (session == nullptr) return nullptr;
+            channel = libssh2_channel_direct_tcpip_ex(session->session, host.c_str(), port,
+                "127.0.0.1", originPort);
+            if (channel == nullptr) error = libssh2_session_last_errno(session->session);
+        }
+        if (channel != nullptr) return channel;
+        if (error != LIBSSH2_ERROR_EAGAIN) return nullptr;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return nullptr;
+}
+
+void CloseForwardChannel(const std::shared_ptr<ForwardState>& state, LIBSSH2_CHANNEL* channel)
+{
+    if (channel == nullptr) return;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    auto sessionIterator = g_sessions.find(state->sessionId);
+    if (sessionIterator != g_sessions.end() && sessionIterator->second->session != nullptr) {
+        CloseChannelInternal(*sessionIterator->second, channel);
+    }
+}
+
+void CancelRemoteListener(const std::shared_ptr<ForwardState>& state)
+{
+    if (state->remoteListener == nullptr) return;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    auto sessionIterator = g_sessions.find(state->sessionId);
+    if (sessionIterator != g_sessions.end() && sessionIterator->second->session != nullptr) {
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
+        int result;
+        do {
+            result = libssh2_channel_forward_cancel(state->remoteListener);
+        } while (result == LIBSSH2_ERROR_EAGAIN && WaitForChannel(*sessionIterator->second, deadline));
+    }
+    state->remoteListener = nullptr;
+}
+
+void RelayForwardConnection(const std::shared_ptr<ForwardState>& state, LIBSSH2_CHANNEL* channel,
+    int socketFd)
+{
+    constexpr size_t kBufferLimit = 262144;
+    std::string toSsh;
+    std::string toSocket;
+    size_t toSshOffset = 0;
+    size_t toSocketOffset = 0;
+    bool socketReadClosed = false;
+    bool socketWriteClosed = false;
+    bool channelEofSent = false;
+    bool channelReadClosed = false;
+    bool fatal = false;
+    std::array<char, 32768> buffer{};
+
+    while (!state->stopping.load() && !fatal) {
+        if (toSshOffset == toSsh.size()) {
+            toSsh.clear();
+            toSshOffset = 0;
+        }
+        if (toSocketOffset == toSocket.size()) {
+            toSocket.clear();
+            toSocketOffset = 0;
+        }
+        short events = 0;
+        if (!socketReadClosed && toSsh.size() - toSshOffset < kBufferLimit) events |= POLLIN;
+        if (toSocketOffset < toSocket.size()) events |= POLLOUT;
+        pollfd descriptor{socketFd, events, 0};
+        int pollResult = poll(&descriptor, 1, 20);
+        if (pollResult < 0 && errno != EINTR) break;
+        if (pollResult > 0 && (descriptor.revents & POLLIN) != 0) {
+            ssize_t received = recv(socketFd, buffer.data(), buffer.size(), 0);
+            if (received > 0) {
+                toSsh.append(buffer.data(), static_cast<size_t>(received));
+            } else if (received == 0) {
+                socketReadClosed = true;
+            } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+                socketReadClosed = true;
+            }
+        }
+        if (pollResult > 0 && (descriptor.revents & POLLOUT) != 0 && toSocketOffset < toSocket.size()) {
+            ssize_t sent = send(socketFd, toSocket.data() + toSocketOffset,
+                toSocket.size() - toSocketOffset, SocketSendFlags());
+            if (sent > 0) {
+                toSocketOffset += static_cast<size_t>(sent);
+            } else if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+                fatal = true;
+            }
+        }
+        if (pollResult > 0 && (descriptor.revents & (POLLERR | POLLNVAL)) != 0) fatal = true;
+        if (pollResult > 0 && (descriptor.revents & POLLHUP) != 0) socketReadClosed = true;
+
+        {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            SessionState* session = FindAuthenticatedSession(state->sessionId);
+            if (session == nullptr) {
+                fatal = true;
+            } else {
+                if (toSshOffset < toSsh.size()) {
+                    ssize_t written = libssh2_channel_write_ex(channel, 0, toSsh.data() + toSshOffset,
+                        toSsh.size() - toSshOffset);
+                    if (written > 0) toSshOffset += static_cast<size_t>(written);
+                    else if (written != LIBSSH2_ERROR_EAGAIN && written != 0) fatal = true;
+                }
+                if (socketReadClosed && toSshOffset == toSsh.size() && !channelEofSent) {
+                    int eofResult = libssh2_channel_send_eof(channel);
+                    if (eofResult == 0) channelEofSent = true;
+                    else if (eofResult != LIBSSH2_ERROR_EAGAIN) fatal = true;
+                }
+                if (!channelReadClosed && toSocket.size() - toSocketOffset < kBufferLimit) {
+                    ssize_t received = libssh2_channel_read_ex(channel, 0, buffer.data(), buffer.size());
+                    if (received > 0) toSocket.append(buffer.data(), static_cast<size_t>(received));
+                    else if (received != LIBSSH2_ERROR_EAGAIN && received < 0) fatal = true;
+                }
+                channelReadClosed = libssh2_channel_eof(channel) != 0;
+            }
+        }
+
+        if (channelReadClosed && toSocketOffset == toSocket.size() && !socketWriteClosed) {
+            shutdown(socketFd, SHUT_WR);
+            socketWriteClosed = true;
+        }
+        if (socketReadClosed && channelReadClosed && toSshOffset == toSsh.size() &&
+            toSocketOffset == toSocket.size()) break;
+    }
+    close(socketFd);
+    CloseForwardChannel(state, channel);
+}
+
+template<typename Callback>
+bool StartConnectionWorker(const std::shared_ptr<ForwardState>& state, Callback callback)
+{
+    state->activeConnections.fetch_add(1);
+    try {
+        std::thread([state, callback = std::move(callback)]() mutable {
+            try {
+                callback();
+            } catch (...) {
+            }
+            if (state->activeConnections.fetch_sub(1) == 1) {
+                std::lock_guard<std::mutex> lock(state->connectionMutex);
+                state->connectionCondition.notify_all();
+            }
+        }).detach();
+        return true;
+    } catch (...) {
+        if (state->activeConnections.fetch_sub(1) == 1) state->connectionCondition.notify_all();
+        return false;
+    }
+}
+
+int32_t PeerPort(const sockaddr_storage& address)
+{
+    if (address.ss_family == AF_INET) {
+        return ntohs(reinterpret_cast<const sockaddr_in*>(&address)->sin_port);
+    }
+    if (address.ss_family == AF_INET6) {
+        return ntohs(reinterpret_cast<const sockaddr_in6*>(&address)->sin6_port);
+    }
+    return 0;
+}
+
+void LocalForwardWorker(const std::shared_ptr<ForwardState>& state)
+{
+    while (!state->stopping.load()) {
+        pollfd descriptor{state->listenFd, POLLIN, 0};
+        int result = poll(&descriptor, 1, 100);
+        if (result < 0 && errno == EINTR) continue;
+        if (result <= 0) continue;
+        if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) break;
+        sockaddr_storage peer{};
+        socklen_t peerLength = sizeof(peer);
+        int client = accept(state->listenFd, reinterpret_cast<sockaddr*>(&peer), &peerLength);
+        if (client < 0) continue;
+        fcntl(client, F_SETFD, FD_CLOEXEC);
+        if (!SetNonBlocking(client)) {
+            close(client);
+            continue;
+        }
+        int32_t originPort = PeerPort(peer);
+        if (!StartConnectionWorker(state, [state, client, originPort]() {
+            LIBSSH2_CHANNEL* channel = OpenDirectChannel(state, state->targetHost, state->targetPort, originPort);
+            if (channel == nullptr) {
+                close(client);
+                return;
+            }
+            RelayForwardConnection(state, channel, client);
+        })) close(client);
+    }
+}
+
+bool SendSocksReply(int client, unsigned char code, const std::shared_ptr<ForwardState>& state)
+{
+    const unsigned char reply[10] = {0x05, code, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    return WriteSocketExact(client, reply, sizeof(reply), state);
+}
+
+void HandleSocksClient(const std::shared_ptr<ForwardState>& state, int client, int32_t originPort)
+{
+    unsigned char greeting[2]{};
+    if (!ReadSocketExact(client, greeting, sizeof(greeting), state) || greeting[0] != 0x05 || greeting[1] == 0) {
+        close(client);
+        return;
+    }
+    std::vector<unsigned char> methods(greeting[1]);
+    if (!ReadSocketExact(client, methods.data(), methods.size(), state)) {
+        close(client);
+        return;
+    }
+    bool noAuthentication = std::find(methods.begin(), methods.end(), 0x00) != methods.end();
+    const unsigned char methodReply[2] = {0x05, static_cast<unsigned char>(noAuthentication ? 0x00 : 0xff)};
+    if (!WriteSocketExact(client, methodReply, sizeof(methodReply), state) || !noAuthentication) {
+        close(client);
+        return;
+    }
+
+    unsigned char request[4]{};
+    if (!ReadSocketExact(client, request, sizeof(request), state) || request[0] != 0x05 || request[2] != 0x00) {
+        SendSocksReply(client, 0x01, state);
+        close(client);
+        return;
+    }
+    if (request[1] != 0x01) {
+        SendSocksReply(client, 0x07, state);
+        close(client);
+        return;
+    }
+    std::string host;
+    if (request[3] == 0x01) {
+        std::array<unsigned char, 4> bytes{};
+        char text[INET_ADDRSTRLEN]{};
+        if (!ReadSocketExact(client, bytes.data(), bytes.size(), state) ||
+            inet_ntop(AF_INET, bytes.data(), text, sizeof(text)) == nullptr) {
+            SendSocksReply(client, 0x08, state);
+            close(client);
+            return;
+        }
+        host = text;
+    } else if (request[3] == 0x03) {
+        unsigned char length = 0;
+        if (!ReadSocketExact(client, &length, 1, state) || length == 0) {
+            SendSocksReply(client, 0x08, state);
+            close(client);
+            return;
+        }
+        std::vector<unsigned char> bytes(length);
+        if (!ReadSocketExact(client, bytes.data(), bytes.size(), state)) {
+            close(client);
+            return;
+        }
+        host.assign(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    } else if (request[3] == 0x04) {
+        std::array<unsigned char, 16> bytes{};
+        char text[INET6_ADDRSTRLEN]{};
+        if (!ReadSocketExact(client, bytes.data(), bytes.size(), state) ||
+            inet_ntop(AF_INET6, bytes.data(), text, sizeof(text)) == nullptr) {
+            SendSocksReply(client, 0x08, state);
+            close(client);
+            return;
+        }
+        host = text;
+    } else {
+        SendSocksReply(client, 0x08, state);
+        close(client);
+        return;
+    }
+    unsigned char portBytes[2]{};
+    if (!ReadSocketExact(client, portBytes, sizeof(portBytes), state)) {
+        close(client);
+        return;
+    }
+    int32_t port = static_cast<int32_t>((static_cast<uint16_t>(portBytes[0]) << 8) | portBytes[1]);
+    if (!ValidForwardPort(port)) {
+        SendSocksReply(client, 0x01, state);
+        close(client);
+        return;
+    }
+    LIBSSH2_CHANNEL* channel = OpenDirectChannel(state, host, port, originPort);
+    SecureClear(host);
+    if (channel == nullptr) {
+        SendSocksReply(client, 0x05, state);
+        close(client);
+        return;
+    }
+    if (!SendSocksReply(client, 0x00, state)) {
+        close(client);
+        CloseForwardChannel(state, channel);
+        return;
+    }
+    RelayForwardConnection(state, channel, client);
+}
+
+void DynamicForwardWorker(const std::shared_ptr<ForwardState>& state)
+{
+    while (!state->stopping.load()) {
+        pollfd descriptor{state->listenFd, POLLIN, 0};
+        int result = poll(&descriptor, 1, 100);
+        if (result < 0 && errno == EINTR) continue;
+        if (result <= 0) continue;
+        if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) break;
+        sockaddr_storage peer{};
+        socklen_t peerLength = sizeof(peer);
+        int client = accept(state->listenFd, reinterpret_cast<sockaddr*>(&peer), &peerLength);
+        if (client < 0) continue;
+        fcntl(client, F_SETFD, FD_CLOEXEC);
+        if (!SetNonBlocking(client)) {
+            close(client);
+            continue;
+        }
+        int32_t originPort = PeerPort(peer);
+        if (!StartConnectionWorker(state, [state, client, originPort]() {
+            HandleSocksClient(state, client, originPort);
+        })) close(client);
+    }
+}
+
+void RemoteForwardWorker(const std::shared_ptr<ForwardState>& state)
+{
+    while (!state->stopping.load()) {
+        LIBSSH2_CHANNEL* channel = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            SessionState* session = FindAuthenticatedSession(state->sessionId);
+            if (session == nullptr) break;
+            channel = libssh2_channel_forward_accept(state->remoteListener);
+            if (channel == nullptr && libssh2_session_last_errno(session->session) != LIBSSH2_ERROR_EAGAIN) break;
+        }
+        if (channel == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            continue;
+        }
+        if (!StartConnectionWorker(state, [state, channel]() {
+            std::string socketError;
+            int client = ConnectTcp(state->targetHost, state->targetPort, 5000, socketError);
+            if (client < 0) {
+                CloseForwardChannel(state, channel);
+                return;
+            }
+            RelayForwardConnection(state, channel, client);
+        })) CloseForwardChannel(state, channel);
+    }
+}
+
+void StopForwardState(const std::shared_ptr<ForwardState>& state)
+{
+    std::unique_lock<std::mutex> stopLock(state->stopMutex);
+    if (state->stopped) return;
+    state->stopping.store(true);
+    if (state->worker.joinable()) state->worker.join();
+    if (state->listenFd >= 0) {
+        close(state->listenFd);
+        state->listenFd = -1;
+    }
+    CancelRemoteListener(state);
+    std::unique_lock<std::mutex> lock(state->connectionMutex);
+    state->connectionCondition.wait(lock, [&state]() { return state->activeConnections.load() == 0; });
+    state->stopped = true;
+}
+
+void StopForwardsForSession(const std::string& sessionId)
+{
+    std::vector<std::shared_ptr<ForwardState>> states;
+    {
+        std::lock_guard<std::mutex> lock(g_forwardMutex);
+        for (auto iterator = g_forwards.begin(); iterator != g_forwards.end();) {
+            if (iterator->second->sessionId == sessionId) {
+                states.push_back(iterator->second);
+                iterator = g_forwards.erase(iterator);
+            } else {
+                ++iterator;
+            }
+        }
+    }
+    for (const auto& state : states) StopForwardState(state);
+}
+
+struct ForwardRuntimeCleanup {
+    ~ForwardRuntimeCleanup()
+    {
+        std::vector<std::shared_ptr<ForwardState>> states;
+        {
+            std::lock_guard<std::mutex> lock(g_forwardMutex);
+            for (const auto& entry : g_forwards) states.push_back(entry.second);
+            g_forwards.clear();
+        }
+        for (const auto& state : states) StopForwardState(state);
+    }
+};
+
+ForwardRuntimeCleanup g_forwardRuntimeCleanup;
+
 } // namespace
 
 std::string Version()
 {
-    return std::string("OpenTabSsh Native Core 0.2.0 / libssh2 ") + LIBSSH2_VERSION + " / real-ssh";
+    return std::string("OpenTabSsh Native Core 0.3.0 / libssh2 ") + LIBSSH2_VERSION + " / real-ssh";
 }
 
 std::string CreateSession(std::string profileJson)
@@ -726,6 +1257,11 @@ NativeResult Read(const std::string& channelId)
     if (channelIterator == g_channels.end()) return {false, 404, "channel not found", ""};
     SessionState* session = FindAuthenticatedSession(channelIterator->second.sessionId);
     if (session == nullptr) return {false, kNotConnected, "session is not authenticated", ""};
+    int secondsToNextKeepalive = 0;
+    int keepaliveResult = libssh2_keepalive_send(session->session, &secondsToNextKeepalive);
+    if (keepaliveResult != 0 && keepaliveResult != LIBSSH2_ERROR_EAGAIN) {
+        return {false, keepaliveResult, SessionError(session->session, "SSH keepalive failed"), ""};
+    }
     std::string output;
     char buffer[16384];
     for (int streamId : {0, 1}) {
@@ -739,7 +1275,10 @@ NativeResult Read(const std::string& channelId)
             return {false, static_cast<int32_t>(result), SessionError(session->session, "terminal read failed"), output};
         }
     }
-    return {true, 0, libssh2_channel_eof(channelIterator->second.channel) != 0 ? "eof" : "read", output};
+    bool eof = libssh2_channel_eof(channelIterator->second.channel) != 0;
+    int32_t exitStatus = eof ? static_cast<int32_t>(libssh2_channel_get_exit_status(
+        channelIterator->second.channel)) : 0;
+    return {true, exitStatus, eof ? "eof" : "read", output};
 }
 
 NativeResult Resize(const std::string& channelId, int32_t cols, int32_t rows)
@@ -779,6 +1318,13 @@ NativeResult CloseChannel(const std::string& channelId)
 
 NativeResult Disconnect(const std::string& sessionId)
 {
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        auto sessionIterator = g_sessions.find(sessionId);
+        if (sessionIterator == g_sessions.end()) return {false, 404, "session not found", ""};
+        sessionIterator->second->disconnecting = true;
+    }
+    StopForwardsForSession(sessionId);
     std::lock_guard<std::mutex> lock(g_mutex);
     auto sessionIterator = g_sessions.find(sessionId);
     if (sessionIterator == g_sessions.end()) return {false, 404, "session not found", ""};
@@ -896,6 +1442,8 @@ NativeResult SftpUpload(const std::string& sessionId, const std::string& localPa
             }
             offset += static_cast<std::streamsize>(written);
             total += static_cast<uint64_t>(written);
+            deadline = std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(session->profile.timeoutMilliseconds);
         }
     }
     if (input.bad()) {
@@ -953,6 +1501,15 @@ NativeResult SftpDownload(const std::string& sessionId, const std::string& remot
             return {false, -1, "local destination write failed", ""};
         }
         total += static_cast<uint64_t>(read);
+        deadline = std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(session->profile.timeoutMilliseconds);
+    }
+    output.flush();
+    if (!output.good()) {
+        CloseSftpHandle(*session, remote);
+        output.close();
+        std::remove(localPath.c_str());
+        return {false, -1, "local destination flush failed", ""};
     }
     output.close();
     if (!CloseSftpHandle(*session, remote)) {
@@ -1048,24 +1605,154 @@ NativeResult SftpChmod(const std::string& sessionId, const std::string& path, in
     return SftpSimpleResult(*session, result, "SFTP permissions updated", "SFTP permission update failed");
 }
 
-std::string AddLocalForward(const std::string&, int32_t, const std::string&, int32_t)
+std::string AddLocalForward(const std::string& sessionId, int32_t localPort,
+    const std::string& remoteHost, int32_t remotePort)
 {
-    return "";
+    if (!ValidForwardPort(localPort) || !ValidForwardPort(remotePort) || remoteHost.empty()) return "";
+    auto state = std::make_shared<ForwardState>();
+    state->sessionId = sessionId;
+    state->kind = ForwardKind::LOCAL;
+    state->bindPort = localPort;
+    state->targetHost = remoteHost;
+    state->targetPort = remotePort;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (FindAuthenticatedSession(sessionId) == nullptr) return "";
+        state->id = NextId("forward-local");
+    }
+    state->listenFd = CreateLoopbackListener(localPort);
+    if (state->listenFd < 0) return "";
+    {
+        std::lock_guard<std::mutex> sessionLock(g_mutex);
+        if (FindAuthenticatedSession(sessionId) == nullptr) {
+            close(state->listenFd);
+            state->listenFd = -1;
+            return "";
+        }
+        try {
+            state->worker = std::thread(LocalForwardWorker, state);
+        } catch (...) {
+            close(state->listenFd);
+            state->listenFd = -1;
+            return "";
+        }
+        std::lock_guard<std::mutex> forwardLock(g_forwardMutex);
+        g_forwards[state->id] = state;
+    }
+    return state->id;
 }
 
-std::string AddRemoteForward(const std::string&, int32_t, const std::string&, int32_t)
+std::string AddRemoteForward(const std::string& sessionId, int32_t remotePort,
+    const std::string& localHost, int32_t localPort)
 {
-    return "";
+    if (!ValidForwardPort(remotePort) || !ValidForwardPort(localPort) || localHost.empty()) return "";
+    auto state = std::make_shared<ForwardState>();
+    state->sessionId = sessionId;
+    state->kind = ForwardKind::REMOTE;
+    state->bindPort = remotePort;
+    state->targetHost = localHost;
+    state->targetPort = localPort;
+    int timeoutMilliseconds = 15000;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        SessionState* session = FindAuthenticatedSession(sessionId);
+        if (session == nullptr) return "";
+        timeoutMilliseconds = session->profile.timeoutMilliseconds;
+        state->id = NextId("forward-remote");
+    }
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMilliseconds);
+    int boundPort = 0;
+    while (state->remoteListener == nullptr && RemainingMilliseconds(deadline) > 0) {
+        int error = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            SessionState* session = FindAuthenticatedSession(sessionId);
+            if (session == nullptr) return "";
+            state->remoteListener = libssh2_channel_forward_listen_ex(session->session, "127.0.0.1",
+                remotePort, &boundPort, 16);
+            if (state->remoteListener == nullptr) error = libssh2_session_last_errno(session->session);
+        }
+        if (state->remoteListener != nullptr) break;
+        if (error != LIBSSH2_ERROR_EAGAIN) return "";
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (state->remoteListener == nullptr || boundPort != remotePort) {
+        CancelRemoteListener(state);
+        return "";
+    }
+    {
+        std::lock_guard<std::mutex> sessionLock(g_mutex);
+        if (FindAuthenticatedSession(sessionId) == nullptr) {
+            auto sessionIterator = g_sessions.find(sessionId);
+            if (sessionIterator != g_sessions.end() && sessionIterator->second->session != nullptr) {
+                libssh2_channel_forward_cancel(state->remoteListener);
+            }
+            state->remoteListener = nullptr;
+            return "";
+        }
+        try {
+            state->worker = std::thread(RemoteForwardWorker, state);
+        } catch (...) {
+            libssh2_channel_forward_cancel(state->remoteListener);
+            state->remoteListener = nullptr;
+            return "";
+        }
+        std::lock_guard<std::mutex> forwardLock(g_forwardMutex);
+        g_forwards[state->id] = state;
+    }
+    return state->id;
 }
 
-std::string AddDynamicForward(const std::string&, int32_t)
+std::string AddDynamicForward(const std::string& sessionId, int32_t localPort)
 {
-    return "";
+    if (!ValidForwardPort(localPort)) return "";
+    auto state = std::make_shared<ForwardState>();
+    state->sessionId = sessionId;
+    state->kind = ForwardKind::DYNAMIC;
+    state->bindPort = localPort;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (FindAuthenticatedSession(sessionId) == nullptr) return "";
+        state->id = NextId("forward-dynamic");
+    }
+    state->listenFd = CreateLoopbackListener(localPort);
+    if (state->listenFd < 0) return "";
+    {
+        std::lock_guard<std::mutex> sessionLock(g_mutex);
+        if (FindAuthenticatedSession(sessionId) == nullptr) {
+            close(state->listenFd);
+            state->listenFd = -1;
+            return "";
+        }
+        try {
+            state->worker = std::thread(DynamicForwardWorker, state);
+        } catch (...) {
+            close(state->listenFd);
+            state->listenFd = -1;
+            return "";
+        }
+        std::lock_guard<std::mutex> forwardLock(g_forwardMutex);
+        g_forwards[state->id] = state;
+    }
+    return state->id;
 }
 
-NativeResult RemoveForward(const std::string&)
+NativeResult RemoveForward(const std::string& forwardId)
 {
-    return {false, kNotImplemented, "real port forwarding is not implemented yet", ""};
+    std::shared_ptr<ForwardState> state;
+    {
+        std::lock_guard<std::mutex> lock(g_forwardMutex);
+        auto iterator = g_forwards.find(forwardId);
+        if (iterator == g_forwards.end()) return {false, 404, "forward not found", ""};
+        state = iterator->second;
+    }
+    StopForwardState(state);
+    {
+        std::lock_guard<std::mutex> lock(g_forwardMutex);
+        auto iterator = g_forwards.find(forwardId);
+        if (iterator != g_forwards.end() && iterator->second == state) g_forwards.erase(iterator);
+    }
+    return {true, 0, "forward removed and resources released", ""};
 }
 
 std::string ToJson(const NativeResult& result)

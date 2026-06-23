@@ -8,6 +8,10 @@
 
 read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 Windows OpenSSH 完成命令、SFTP、关闭和再次连接回归；已知旧 appfreeze 没有复现。尚未实现用户取消正在进行的 native async work，极端慢服务器下的任务终止仍是风险。
 
+三类转发 worker 已编码但尚无 HAP/设备流量证据。重点风险是同一 libssh2 session 上终端、SFTP 与多个转发 channel 的并发、公网 sshd 是否允许 remote forward、SOCKS5 半关闭、端口占用和断开竞态；必须以真实 TCP 回显/哈希、监听地址和断开后端口释放分别验收。
+
+重连退避和 HarmonyOS `NetConnection` 网络状态观察器已编码，但尚未经过 Hvigor/HAP 与设备验证。需验证权限/API 兼容、用户关闭、HostKey 变化、认证失败、正常 EOF、前后台切换、网络回调丢失兜底和断网恢复不会产生重连风暴或资源泄漏。
+
 2026-06-22 SFTP 系统文档选择器的“保存”界面在当前 x86_64 自动化模拟器上出现 Promise 未返回且界面未显示；已通过应用私有缓存中的受限文本上传→下载回读完成核心数据校验，但系统保存选择器还需真机手工验证和取消/超时处理。
 
 ## P0：凭据与 HostKey 安全
@@ -21,6 +25,16 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 ## P1：仓库内生成产物
 
 初始目录含 build、`.cxx`、Hvigor/IDE/AI 缓存和崩溃转储。首次提交前按 `WORKSPACE_PATHS.md` 清理，后续只能在 `99_Temp` stage 构建。
+
+2026-06-23 当前受限执行环境只允许写项目根，无法创建/替换 `99_Temp` stage。仓库内既有的 `entry/build` 与 `entry/.cxx` 已通过新增的 `scripts/clean_project.ps1 -BuildOnly` 安全清理，静态审计恢复为 45/45；ProIcons 替换尚未产生新 HAP。恢复具备 `99_Temp` 写权限的会话后必须执行 Mock/真实构建和模拟器安装。
+
+## P1：ProIcons 资源验证
+
+ProIcons SVG 必须保持标准 XML 且不得含重复属性；浏览器可显示不代表 HarmonyOS 资源编译器一定接受。`scripts/audit_project.ps1` 已阻止旧自绘 `tab_*.svg` 和已知 Emoji/字符图标，完整映射见 `PROICONS_ICONS.md`。当前 28 个使用中的 SVG 已通过 XML 解析，设备渲染仍须由下一次 HAP 构建安装确认。
+
+## P1：终端渲染仍缺设备编译与性能证据
+
+终端样式渲染使用 ArkUI `Text`/`Span` 动态 runs；解析器内存测试不能替代 ArkUI DSL 编译和设备性能测试。恢复 `99_Temp` 写权限后要先构建，再以长彩色输出、CJK/Emoji、vim/tmux/htop/nano、备用屏进退、复制和窗口 resize 回归；若单个 `Text` 的 2,000 行样式 runs 出现卡顿，应改为可视区域虚拟化，而不是缩短历史后声称兼容。
 
 ## P1：签名尚未配置
 
