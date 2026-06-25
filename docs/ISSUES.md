@@ -22,11 +22,21 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 旧 README 写 `io.github.opentabssh`，实际 `build-profile.json5` 与 `AppScope/app.json5` 均为 `com.open.tabssh`；现已统一，以构建配置为准。
 
+2026-06-25 经验规则：每轮新增或修改脚本、Native、ArkTS 页面、资源、构建流程后，必须同步更新至少一个状态文档。最低要求：新增文件写入 `docs/FILES.md` 或 `scripts/README.md`；新增测试流程写入 `docs/PULL_TEST_GUIDE.md` 或 `docs/BUILD_TEST.md`；发现风险写入本文件；完成/待验状态写入 `docs/PROGRESS.md`。不能只改代码不更新文档。
+
 ## P1：仓库内生成产物
 
 初始目录含 build、`.cxx`、Hvigor/IDE/AI 缓存和崩溃转储。首次提交前按 `WORKSPACE_PATHS.md` 清理，后续只能在 `99_Temp` stage 构建。
 
 2026-06-23 当前受限执行环境只允许写项目根，无法创建/替换 `99_Temp` stage。仓库内既有的 `entry/build` 与 `entry/.cxx` 已通过新增的 `scripts/clean_project.ps1 -BuildOnly` 安全清理，静态审计恢复为 45/45；ProIcons 替换尚未产生新 HAP。恢复具备 `99_Temp` 写权限的会话后必须执行 Mock/真实构建和模拟器安装。
+
+## P1：安装/冷启动冒烟不能替代功能验收
+
+2026-06-25 新增 `scripts/install_and_smoke.ps1`，用于安装 HAP、启动 `com.open.tabssh`、记录 bundle dump/PID、过滤 hilog/faultlogger 基础异常线索。该脚本只证明 HAP 能安装和冷启动，不能证明 SSH、SFTP、端口转发、重连、签名或发布质量。经验总结：安装冒烟摘要可以提交结论，但原始 hilog 可能包含设备隐私、路径或服务器线索，提交前必须脱敏；不要把 `install_and_smoke.ps1` 的 PASS 当作真实 SSH 通过。
+
+## P1：本地一键检查的边界
+
+2026-06-25 新增 `scripts/run_local_checks.ps1`，用于串联 `git diff --check`、静态审计、终端解析器测试、Mock 构建/验包和可选真实 HAP 构建/验包。它减少人工漏跑脚本，但仍不能替代设备端操作、真实服务器流量、SFTP 哈希、转发逐字节验证和长时间重连压力测试。经验总结：一键脚本失败时优先看 `99_Temp\tabssh_harmonyos_logs\local_checks\summary_*.md`，只贴无敏感信息片段。
 
 ## P1：ProIcons 资源验证
 
