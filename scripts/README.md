@@ -1,6 +1,7 @@
 # 脚本说明
 
 - `run_local_checks.ps1`：本地拉取后的一键检查入口；默认执行 `git diff --check`、静态审计、终端解析器测试、Mock 构建和 Mock 验包；加 `-WithRealCore` 后执行真实 HAP 构建与验包，加 `-BuildDependencies` 后先重建双 ABI 三方依赖。
+- `install_and_smoke.ps1`：安装 `99_Temp` 中的 HAP 到 hdc 默认设备或 `-DeviceId` 指定设备，启动 `com.open.tabssh`，采集 bundle dump、PID、过滤 hilog/faultlogger 线索，并输出无凭据摘要；只证明安装/冷启动，不证明 SSH 功能。
 - `stage_project_for_build.ps1`：把干净源码复制到 `99_Temp\harmonyos_stage\10_Tabssh_harmonyos`，仓库根不生成构建产物。
 - `build_mock_hap.ps1`：在 stage 中执行 Hvigor Mock HAP 构建，复制 HAP/APP 到 `99_Temp\harmonyos_build\10_Tabssh_harmonyos`，日志写入 `99_Temp\tabssh_harmonyos_logs`。
 - `run_hvigor_with_sdk_patch.js`：仅修正当前 DevEco 命令行 SDK 组件发现错误，不改版本、不隐藏 ArkTS 编译错误；由构建脚本在 stage 中调用。
