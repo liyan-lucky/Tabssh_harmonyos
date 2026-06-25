@@ -24,6 +24,8 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 2026-06-25 经验规则：每轮新增或修改脚本、Native、ArkTS 页面、资源、构建流程后，必须同步更新至少一个状态文档。最低要求：新增文件写入 `docs/FILES.md` 或 `scripts/README.md`；新增测试流程写入 `docs/PULL_TEST_GUIDE.md` 或 `docs/BUILD_TEST.md`；发现风险写入本文件；完成/待验状态写入 `docs/PROGRESS.md`。不能只改代码不更新文档。
 
+2026-06-25 经验补充：`docs/BUILD_TEST.md` 含旧 HAP 哈希、失败栈和设备验证结论，不能为了加入新入口而覆盖成短摘要。构建测试文档只能追加或补充；若误压缩历史，必须从 Git 历史恢复旧证据并记录修复过程。
+
 ## P1：仓库内生成产物
 
 初始目录含 build、`.cxx`、Hvigor/IDE/AI 缓存和崩溃转储。首次提交前按 `WORKSPACE_PATHS.md` 清理，后续只能在 `99_Temp` stage 构建。
