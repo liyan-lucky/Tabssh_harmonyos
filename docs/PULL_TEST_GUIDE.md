@@ -19,7 +19,47 @@ git pull --ff-only origin codex/real-ssh-core-foundation
 - `99_Temp` 是多项目共享目录，禁止整体删除；任何 APK/HAP 一律不得按扩展名全局清理。
 - 构建/日志/依赖/测试端只允许进入 `docs/WORKSPACE_PATHS.md` 中登记的 TabSSH 专属目录。
 
-## 3. Mock fallback 快速测试
+## 3. 本地一键检查
+
+推荐先跑默认检查：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
+```
+
+默认会执行：
+
+- `git diff --check`
+- `scripts\audit_project.ps1`
+- `scripts\test_terminal_emulator.ps1`
+- `scripts\build_mock_hap.ps1`
+- `scripts\verify_mock_hap.ps1`
+
+检查摘要会写入：
+
+```text
+99_Temp\tabssh_harmonyos_logs\local_checks\summary_*.md
+```
+
+只做快速静态/终端检查，不构建 HAP：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -SkipMockBuild
+```
+
+已有三方依赖 manifest 时，构建并验真实 HAP：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -WithRealCore
+```
+
+需要从零重建三方依赖时：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -WithRealCore -BuildDependencies
+```
+
+## 4. Mock fallback 手动测试
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\audit_project.ps1
@@ -34,7 +74,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - Terminal 页面必须清楚显示 Mock，不得伪装成真实 SSH。
 - SFTP/端口转发在 Mock 下不得显示真实成功。
 
-## 4. 真实依赖构建
+## 5. 真实依赖构建
 
 前提：Windows + DevEco Studio/OpenHarmony Native SDK + MSYS2 Perl/make + Git。
 
@@ -51,7 +91,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_native_depende
 
 不要把生成的 `.a`、`.so`、头文件或 SDK 内容提交进仓库。
 
-## 5. 真实 HAP 构建与验包
+## 6. 真实 HAP 构建与验包
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_real_hap.ps1
@@ -60,9 +100,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_real_hap.ps1
 
 `verify_real_hap.ps1` 只证明包内是 real-core marker 和正确 ABI，不证明网络功能完成。
 
-## 6. 推荐设备测试顺序
+## 7. 推荐设备测试顺序
 
-### 6.1 基础连接
+### 7.1 基础连接
 
 1. 新建连接。
 2. host/port/username 在 UI 输入。
@@ -77,7 +117,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_real_hap.ps1
 - 正确密码进入 PTY shell。
 - 再次连接同一 profile 不重复出现首次 HostKey 提示。
 
-### 6.2 终端
+### 7.2 终端
 
 在远端执行：
 
@@ -97,7 +137,7 @@ stty size
 
 当前终端是“较完整 VT 基线”，不能直接宣称完整 xterm。
 
-### 6.3 SFTP
+### 7.3 SFTP
 
 先测只读：
 
@@ -116,7 +156,7 @@ stty size
 
 大文件、取消、中断恢复仍需单独取证。
 
-### 6.4 端口转发
+### 7.4 端口转发
 
 三类都要逐字节验证：
 
@@ -128,7 +168,7 @@ stty size
 
 端口转发源码存在不等于完成；必须有真实流量证据。
 
-### 6.5 断线与重连
+### 7.5 断线与重连
 
 测试：
 
@@ -144,7 +184,7 @@ stty size
 - HostKey 变化、认证失败、无效配置、正常 shell 退出不进入重连风暴。
 - 断开前 channel、forward、session、socket 被清理。
 
-## 7. 当前不能写成完成的内容
+## 8. 当前不能写成完成的内容
 
 - HUKS/ASSET 凭据安全存储。
 - arm64 真机真实 SSH 完整验收。
@@ -153,7 +193,7 @@ stty size
 - 三类端口转发真实 HAP 流量证据。
 - 后台保持、RDB 持久化、ProxyJump、Mosh、X11、云/虚拟化/VNC。
 
-## 8. 测试完成后要回填
+## 9. 测试完成后要回填
 
 每次测试后同步：
 
