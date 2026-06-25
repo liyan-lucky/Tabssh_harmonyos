@@ -1,6 +1,16 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { ConnectionProfile } from '../common/models/ConnectionProfile';
+import {
+  ProfileFilter,
+  SORT_CONNECTION_COUNT_DESC,
+  SORT_FAVORITE_FIRST,
+  SORT_HOST_ASC,
+  SORT_LAST_CONNECTED_DESC,
+  SORT_MANUAL,
+  SORT_NAME_ASC,
+  createDefaultProfileFilter
+} from '../common/models/ConnectionGroup';
 import { ProfileRepository } from '../common/storage/ProfileRepository';
 import { NativeSshCore } from '../common/native/NativeSshCore';
 import { createIconColorFilter } from '../common/IconUtils';
@@ -16,12 +26,20 @@ interface BottomTabItem {
   icon: Resource;
 }
 
+interface SortChipItem {
+  title: string;
+  mode: string;
+}
+
 @Entry
 @Component
 struct Index {
   @State profiles: ConnectionProfile[] = [];
   @State nativeVersion: string = '';
   @State activeTab: number = 0;
+  @State searchKeyword: string = '';
+  @State sortMode: string = SORT_MANUAL;
+  @State favoriteOnly: boolean = false;
   @StorageProp('avoidNavigationBarHeight') avoidNavigationBarHeight: number = 0;
 
   private readonly accentColor: string = '#0A84FF';
@@ -48,6 +66,15 @@ struct Index {
     { title: '我的', icon: $rawfile('settings_person.svg') }
   ];
 
+  private sortChips: SortChipItem[] = [
+    { title: '默认', mode: SORT_MANUAL },
+    { title: '名称', mode: SORT_NAME_ASC },
+    { title: '主机', mode: SORT_HOST_ASC },
+    { title: '最近', mode: SORT_LAST_CONNECTED_DESC },
+    { title: '次数', mode: SORT_CONNECTION_COUNT_DESC },
+    { title: '收藏', mode: SORT_FAVORITE_FIRST }
+  ];
+
   aboutToAppear(): void {
     this.reload();
     this.nativeVersion = NativeSshCore.version();
@@ -58,11 +85,32 @@ struct Index {
   }
 
   reload(): void {
-    this.profiles = ProfileRepository.list();
+    const filter: ProfileFilter = createDefaultProfileFilter();
+    filter.keyword = this.searchKeyword;
+    filter.favoriteOnly = this.favoriteOnly;
+    filter.sortMode = this.sortMode;
+    this.profiles = ProfileRepository.listFiltered(filter);
   }
 
   private toast(message: string): void {
     promptAction.showToast({ message: message, duration: 1800 });
+  }
+
+  private toggleFavorite(profile: ConnectionProfile): void {
+    const updated: ConnectionProfile = JSON.parse(JSON.stringify(profile)) as ConnectionProfile;
+    updated.favorite = !updated.favorite;
+    ProfileRepository.save(updated);
+    this.reload();
+  }
+
+  private formatConnectionMeta(profile: ConnectionProfile): string {
+    if (profile.connectionCount > 0 && profile.lastConnectedAt > 0) {
+      return '已连接 ' + profile.connectionCount.toString() + ' 次';
+    }
+    if (profile.lastErrorMessage.length > 0) {
+      return '上次失败：' + profile.lastErrorMessage;
+    }
+    return '未连接';
   }
 
   private handleAction(item: WorkbenchAction): void {
@@ -136,9 +184,7 @@ struct Index {
       .padding({ left: 22, right: 22, top: 8 })
     } else {
       Row() {
-        Blank()
-          .layoutWeight(1)
-
+        Blank().layoutWeight(1)
         Row() {
           if (this.activeTab === 0) {
             Image($rawfile('settings_server.svg'))
@@ -237,10 +283,7 @@ struct Index {
       .onClick(action)
 
       if (showDivider) {
-        Divider()
-          .color(this.lineColor)
-          .strokeWidth(1)
-          .margin({ left: 62 })
+        Divider().color(this.lineColor).strokeWidth(1).margin({ left: 62 })
       }
     }
     .width('100%')
@@ -255,13 +298,11 @@ struct Index {
           .height(22)
           .colorFilter(createIconColorFilter(this.accentColor))
           .margin({ left: 13, right: 13 })
-
         Text(item.title)
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.textPrimary)
           .layoutWeight(1)
-
         Image($rawfile('ft_up.svg'))
           .width(18)
           .height(18)
@@ -275,10 +316,156 @@ struct Index {
       .onClick(() => this.handleAction(item))
 
       if (index < this.actions.length - 1) {
-        Divider()
-          .color(this.lineColor)
-          .strokeWidth(1)
-          .margin({ left: 0, right: 0 })
+        Divider().color(this.lineColor).strokeWidth(1)
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  FilterChip(title: string, selected: boolean, action: () => void) {
+    Text(title)
+      .fontSize(12)
+      .fontColor(selected ? Color.White : '#64748B')
+      .fontWeight(selected ? FontWeight.Medium : FontWeight.Regular)
+      .padding({ left: 11, right: 11, top: 6, bottom: 6 })
+      .backgroundColor(selected ? this.accentColor : '#F1F5F9')
+      .borderRadius(12)
+      .margin({ right: 8 })
+      .onClick(action)
+  }
+
+  @Builder
+  ConnectionFilterCard() {
+    Column({ space: 10 }) {
+      Row() {
+        Image($rawfile('settings_tune.svg'))
+          .width(18)
+          .height(18)
+          .colorFilter(createIconColorFilter('#64748B'))
+          .margin({ right: 8 })
+        TextInput({ placeholder: '搜索名称、主机、用户或备注', text: this.searchKeyword })
+          .fontSize(14)
+          .fontColor(this.textPrimary)
+          .placeholderColor('#94A3B8')
+          .backgroundColor(Color.Transparent)
+          .layoutWeight(1)
+          .height(38)
+          .onChange((value: string) => {
+            this.searchKeyword = value;
+            this.reload();
+          })
+      }
+      .width('100%')
+      .height(42)
+      .padding({ left: 12, right: 12 })
+      .backgroundColor('#F8FAFC')
+      .borderRadius(14)
+
+      Row() {
+        this.FilterChip('全部', !this.favoriteOnly, () => {
+          this.favoriteOnly = false;
+          this.reload();
+        })
+        this.FilterChip('只看收藏', this.favoriteOnly, () => {
+          this.favoriteOnly = true;
+          this.reload();
+        })
+      }
+      .width('100%')
+
+      Row() {
+        ForEach(this.sortChips, (item: SortChipItem) => {
+          this.FilterChip(item.title, this.sortMode === item.mode, () => {
+            this.sortMode = item.mode;
+            this.reload();
+          })
+        }, (item: SortChipItem) => item.mode)
+      }
+      .width('100%')
+    }
+    .width('92%')
+    .padding(12)
+    .backgroundColor(Color.White)
+    .borderRadius(18)
+    .shadow({ radius: 8, color: '#0A000000', offsetY: 2 })
+  }
+
+  @Builder
+  ProfileRow(profile: ConnectionProfile, index: number) {
+    Column() {
+      Row() {
+        Row() {
+          Image($rawfile('settings_server.svg'))
+            .width(22)
+            .height(22)
+            .colorFilter(createIconColorFilter(this.accentColor))
+        }
+        .width(38)
+        .height(38)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor('#EAF3FF')
+        .borderRadius(12)
+        .margin({ right: 10 })
+
+        Column({ space: 3 }) {
+          Row() {
+            Text(profile.name)
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.textPrimary)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+            if (profile.favorite) {
+              Text('收藏')
+                .fontSize(10)
+                .fontColor('#F59E0B')
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                .backgroundColor('#FFF7ED')
+                .borderRadius(8)
+                .margin({ left: 6 })
+            }
+          }
+          .width('100%')
+          Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
+            .fontSize(12)
+            .fontColor(this.textSecond)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.formatConnectionMeta(profile))
+            .fontSize(11)
+            .fontColor('#94A3B8')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Column({ space: 6 }) {
+          Text(profile.favorite ? '取消' : '收藏')
+            .fontSize(12)
+            .fontColor(profile.favorite ? '#F59E0B' : '#64748B')
+            .padding({ left: 9, right: 9, top: 5, bottom: 5 })
+            .backgroundColor(profile.favorite ? '#FFF7ED' : '#F1F5F9')
+            .borderRadius(9)
+            .onClick(() => this.toggleFavorite(profile))
+          Text('连接')
+            .fontSize(13)
+            .fontColor(this.accentColor)
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .backgroundColor('#EAF3FF')
+            .borderRadius(10)
+            .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
+        }
+        .alignItems(HorizontalAlign.End)
+      }
+      .width('100%')
+      .height(76)
+      .padding({ left: 12, right: 12 })
+
+      if (index < this.profiles.length - 1) {
+        Divider().color(this.lineColor).margin({ left: 62 })
       }
     }
     .width('100%')
@@ -297,7 +484,6 @@ struct Index {
       .borderRadius(18)
       .clip(true)
       .margin({ top: 14 })
-
       Blank()
     }
     .width('100%')
@@ -316,7 +502,6 @@ struct Index {
             .width('100%')
             .height('100%')
             .textAlign(TextAlign.Center)
-
           Column({ space: 7 }) {
             Text('SSH')
               .fontSize(28)
@@ -362,61 +547,30 @@ struct Index {
         .clip(true)
 
         this.SectionLabel('已保存主机')
+        this.ConnectionFilterCard()
         if (this.profiles.length === 0) {
           Row() {
-            Text('暂无主机，点击右上角 + 添加')
+            Text('没有匹配主机，调整搜索或点击右上角 + 添加')
               .fontSize(14)
               .fontColor(this.textSecond)
           }
           .width('92%')
-          .height(54)
+          .height(62)
           .justifyContent(FlexAlign.Center)
           .backgroundColor(Color.White)
           .borderRadius(16)
+          .margin({ top: 10 })
         } else {
           Column() {
             ForEach(this.profiles, (profile: ConnectionProfile, index: number) => {
-              Column() {
-                Row() {
-                  Image($rawfile('settings_server.svg'))
-                    .width(22)
-                    .height(22)
-                    .colorFilter(createIconColorFilter(this.accentColor))
-                    .margin({ left: 8, right: 8 })
-                  Column({ space: 2 }) {
-                    Text(profile.name)
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor(this.textPrimary)
-                    Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
-                      .fontSize(12)
-                      .fontColor(this.textSecond)
-                      .maxLines(1)
-                      .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-                  Text('连接')
-                    .fontSize(13)
-                    .fontColor(this.accentColor)
-                    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                    .backgroundColor('#EAF3FF')
-                    .borderRadius(10)
-                    .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
-                }
-                .width('100%')
-                .height(58)
-                .padding({ left: 12, right: 12 })
-                if (index < this.profiles.length - 1) {
-                  Divider().color(this.lineColor).margin({ left: 50 })
-                }
-              }
+              this.ProfileRow(profile, index)
             }, (profile: ConnectionProfile) => profile.id)
           }
           .width('92%')
           .backgroundColor(Color.White)
           .borderRadius(16)
           .clip(true)
+          .margin({ top: 10 })
         }
 
         Button('端口转发')
@@ -439,28 +593,22 @@ struct Index {
   MonitorPage() {
     Column() {
       Blank()
-
       Stack() {
-        Circle()
-          .width(132)
-          .height(132)
-          .fill('#EEF3FF')
+        Circle().width(132).height(132).fill('#EEF3FF')
         Image($rawfile('settings_monitor.svg'))
           .width(58)
           .height(58)
           .colorFilter(createIconColorFilter('#D8E1EE'))
       }
-
       Text('暂无监控设备')
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.textPrimary)
-          .margin({ top: 24 })
+        .fontSize(24)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.textPrimary)
+        .margin({ top: 24 })
       Text('添加第一台设备开始监控')
-          .fontSize(15)
-          .fontColor(this.textSecond)
-          .margin({ top: 10 })
-
+        .fontSize(15)
+        .fontColor(this.textSecond)
+        .margin({ top: 10 })
       Button() {
         Row({ space: 9 }) {
           Image($rawfile('ft_new_folder.svg'))
@@ -470,17 +618,16 @@ struct Index {
           Text('添加设备').fontSize(16).fontColor(Color.White)
         }
       }
-        .width(190)
-        .height(48)
-        .fontSize(16)
-        .backgroundColor(this.accentColor)
-        .borderRadius(14)
-        .margin({ top: 28 })
-        .onClick(() => {
-          this.activeTab = 1;
-          router.pushUrl({ url: 'pages/ConnectionEditPage' });
-        })
-
+      .width(190)
+      .height(48)
+      .fontSize(16)
+      .backgroundColor(this.accentColor)
+      .borderRadius(14)
+      .margin({ top: 28 })
+      .onClick(() => {
+        this.activeTab = 1;
+        router.pushUrl({ url: 'pages/ConnectionEditPage' });
+      })
       Row({ space: 8 }) {
         Image($rawfile('settings_info.svg'))
           .width(19)
@@ -488,11 +635,9 @@ struct Index {
           .colorFilter(createIconColorFilter('#64748B'))
         Text('查看功能介绍').fontSize(15).fontColor('#64748B')
       }
-        .margin({ top: 22 })
-        .onClick(() => this.toast('设备在线、CPU、内存、磁盘和网络监控尚未实现'))
-
+      .margin({ top: 22 })
+      .onClick(() => this.toast('设备在线、CPU、内存、磁盘和网络监控尚未实现'))
       Blank()
-
       Row() {
         Image($rawfile('ft_new_folder.svg'))
           .width(26)
@@ -608,7 +753,6 @@ struct Index {
             .width(22)
             .height(22)
             .colorFilter(createIconColorFilter(this.activeTab === index ? this.accentColor : '#8D939E'))
-
           Text(tab.title)
             .fontSize(11)
             .fontColor(this.activeTab === index ? this.accentColor : '#8D939E')
