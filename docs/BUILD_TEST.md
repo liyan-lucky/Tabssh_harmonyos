@@ -87,6 +87,8 @@ SHA256 `6DB07DB21303EA29FBCA24B9FD17953A04CE5B49BF4BEAB929825D1D6FD3ED20` 的公
 
 SFTP 大文件路径已修正两个源码级风险：Native 上传/下载不再把 profile timeout 当作整次传输总时限，而是在每个成功块后刷新空闲 deadline；下载在成功返回前检查本地 flush。Document URI 与私有缓存之间的复制也由同步 `copyFileSync` 改为 Promise `fs.copyFile`，避免在 ArkUI 线程同步搬运大文件。Native 修改继续通过 arm64/x86_64 语法检查；尚无新 HAP、大文件哈希、取消或断点恢复证据。
 
+2026-06-25 审计同步修正：新增 `scripts/run_local_checks.ps1` 与 `scripts/install_and_smoke.ps1` 后，本文件曾被错误压缩为摘要。已按历史记录恢复详细构建/安装/失败证据，并追加当前入口与记录规则。经验：构建测试文档只能追加或补充，不应覆盖旧失败和旧哈希；旧失败记录是后续排查依据。
+
 ## 当前必须补的新证据
 
 - 运行 `scripts/run_local_checks.ps1` 后生成的 `summary_*.md` 结论。
