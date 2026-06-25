@@ -20,7 +20,8 @@
 - CMake 根据 stage 中经过清单校验的静态库自动切换真实 Core；源码 checkout 继续明确回退 Mock。
 - ArkTS 首次 HostKey/变更警告流程；凭据仅保留在运行内存，Mock 不再保存 profile JSON。
 - Android 对齐字段骨架已扩展到 `ConnectionProfile`：HostKey 元数据、代理认证、IPv4/IPv6 模式、压缩、agent/X11/Mosh、RemoteCommand、SendEnv、RequestTTY、多路复用、分组/收藏/排序/统计、同步元数据等。字段仅代表可承载配置，未接 UI/Native/RDB 的功能不能标记完成。
-- 新增 `ConnectionGroup`、`ProfileFilter` 与内存仓库分组/过滤/排序接口，用于对齐 Android 的连接管理基础；当前仍未接 RDB、首页筛选 UI 或持久化。
+- 新增 `ConnectionGroup`、`ProfileFilter` 与内存仓库分组/过滤/排序接口，用于对齐 Android 的连接管理基础；当前仍未接 RDB、分组编辑 UI 或持久化。
+- 首页连接页已保持现有浅蓝背景、白色圆角卡片、蓝色芯片和悬浮胶囊底栏风格，接入连接搜索、收藏筛选、排序芯片、收藏切换、连接次数/上次失败提示。该 UI 仍需 HAP 编译和设备渲染验证。
 - 会话管理已把认证成功写入内存统计 `lastConnectedAt/connectionCount`，把认证失败、HostKey 确认失败、异常中断和重连异常写入 `lastErrorMessage`；退出应用后仍会丢失，未完成 Android Room/RDB 级统计。
 - 私钥通过系统文档选择器复制到应用私有 `filesDir/ssh_keys`，不记录原文件 URI 或内容，并提供应用内删除入口；真实包已在 x86_64 模拟器覆盖安装，端到端认证待验。
 - 模拟器已验证系统文档选择器 UI 可打开；同时发现并修复连接编辑返回后的列表刷新问题。
@@ -42,7 +43,7 @@
 ## 未实现（发布阻塞）
 
 - 私钥认证、外部服务器与 arm64 真机端到端证据；HUKS/ASSET 安全存储。
-- 连接管理仍未完成：RDB 持久化、首页筛选/排序 UI、分组编辑 UI、批量编辑、搜索结果高亮和统计页均待实现。
+- 连接管理仍未完成：RDB 持久化、分组编辑 UI、批量编辑、搜索结果高亮、统计页和设备端筛选渲染证据均待实现。
 - 终端剩余兼容：完整键盘/IME 逐键输入、选择与搜索、鼠标协议、更多 DEC/xterm 边界、vim/tmux/htop/nano 和设备端性能/渲染回归。
 - SFTP 大文件、中断恢复、外部服务器写操作及系统文件保存选择器的稳定回归。
 - local/remote/dynamic forwarding 的真实 HAP 与逐字节流量链路证据；源码实现不能替代验收。
