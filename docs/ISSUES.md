@@ -30,6 +30,10 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 2026-06-25 新增/扩展了 `ConnectionProfile`、`ConnectionGroup`、`ProfileFilter` 和内存仓库分组/排序/统计接口。它们只是向 Android 连接配置模型靠拢的承载层，不代表代理、跳板、SSH config、Mosh、X11、RDB、同步或连接统计 UI 已完成。经验总结：新增字段后必须验证旧 profile 通过 `normalizeConnectionProfile()` 兼容；Native 只应读取明确支持的字段，不能因为字段存在就改变真实连接行为。
 
+## P1：首页筛选 UI 尚未编译验证
+
+2026-06-25 首页连接页新增搜索输入、收藏筛选、排序芯片、收藏切换和连接统计展示，并尽量保持现有浅蓝背景、白色卡片、圆角、轻阴影和底部胶囊导航风格。该改动涉及 ArkUI `TextInput`、动态芯片、列表筛选和状态刷新，必须通过下一次 Hvigor/HAP 构建与模拟器/真机页面点击验证。经验总结：UI 风格保持不等于编译通过；旧 HAP 不能代表本轮筛选 UI。
+
 ## P1：仓库内生成产物
 
 初始目录含 build、`.cxx`、Hvigor/IDE/AI 缓存和崩溃转储。首次提交前按 `WORKSPACE_PATHS.md` 清理，后续只能在 `99_Temp` stage 构建。
