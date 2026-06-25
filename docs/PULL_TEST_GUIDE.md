@@ -1,13 +1,13 @@
 # 拉取与测试指南
 
-> 目标：让接手者直接拉取 `codex/real-ssh-core-foundation` 分支后，按顺序验证 Mock、真实 Core、SFTP、终端和端口转发。本文只描述测试流程，不把尚未验证的功能标记为完成。
+> 目标：让接手者直接拉取 `main` 后，按顺序验证 Mock、真实 Core、SFTP、终端、端口转发和当前首页连接筛选 UI。本文只描述测试流程，不把尚未验证的功能标记为完成。
 
-## 1. 拉取分支
+## 1. 拉取 main
 
 ```powershell
 git fetch origin
-git checkout codex/real-ssh-core-foundation
-git pull --ff-only origin codex/real-ssh-core-foundation
+git checkout main
+git pull --ff-only origin main
 ```
 
 如果只想测试稳定的 Mock fallback，可不构建三方依赖；源码 checkout 默认会在缺少 `third_party` 产物时编译 `native_ssh_mock.cpp`。
@@ -144,7 +144,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps
 - 正确密码进入 PTY shell。
 - 再次连接同一 profile 不重复出现首次 HostKey 提示。
 
-### 8.2 终端
+### 8.2 首页连接管理 UI
+
+在“连接”页测试：
+
+- 搜索名称、主机、用户或备注。
+- 全部 / 只看收藏筛选。
+- 默认、名称、主机、最近、次数、收藏排序芯片。
+- 收藏 / 取消收藏。
+- 连接次数与上次失败提示显示。
+
+当前这些数据仍来自内存仓库；未接 RDB 前，退出应用后数据丢失属于预期。
+
+### 8.3 终端
 
 在远端执行：
 
@@ -164,7 +176,7 @@ stty size
 
 当前终端是“较完整 VT 基线”，不能直接宣称完整 xterm。
 
-### 8.3 SFTP
+### 8.4 SFTP
 
 先测只读：
 
@@ -183,7 +195,7 @@ stty size
 
 大文件、取消、中断恢复仍需单独取证。
 
-### 8.4 端口转发
+### 8.5 端口转发
 
 三类都要逐字节验证：
 
@@ -195,7 +207,7 @@ stty size
 
 端口转发源码存在不等于完成；必须有真实流量证据。
 
-### 8.5 断线与重连
+### 8.6 断线与重连
 
 测试：
 
