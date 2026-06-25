@@ -12,7 +12,7 @@
 
 `ConnectionGroupPage.ets` 已新增并注册到 `main_pages.json`，可承载分组列表、新建分组、折叠/展开、删除空分组和每组主机数。该页面沿用现有卡片风格，当前只接内存仓库，首页入口、RDB 持久化、重命名和设备点击证据仍待补。
 
-`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 持久化、首页分组入口、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
+`docs/BUILD_READY.md` 已记录当前 `main` 可以进入本地构建测试。`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 持久化、首页分组入口、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
 
 ## 当前必须补的新证据
 
@@ -30,9 +30,10 @@
 
 1. 完整读取本文件，再按 `docs/README.md` 顺序阅读。
 2. 执行 `git status --short --branch` 和完整 diff，确认当前在 `main`。
-3. 执行 `scripts/audit_project.ps1`，再用 `scripts/build_mock_hap.ps1` 在 `99_Temp` stage 中验证基线。
-4. 真实功能优先级：libssh2 双架构 → HostKey/认证安全 → shell/PTY 非阻塞读写 → 终端渲染 → SFTP → local/remote/dynamic forwarding → 重连与断开清理。
-5. 每次重要修改和最终发布前各运行一次完整审计、构建、安装与相关功能检查，并立即同步所有相关文档。
+3. 执行 `scripts/run_local_checks.ps1`；如时间紧，先执行 `scripts/run_local_checks.ps1 -SkipMockBuild`。
+4. 默认检查通过后，执行 Mock HAP 构建/验包；具备三方依赖时再执行真实 Core HAP 构建/验包。
+5. 安装 HAP 后优先验证：首页连接筛选 UI、连接分组页路由编译、底部导航、Terminal/SFTP/PortForward/Settings/About 路由。
+6. 每次重要修改和最终发布前各运行一次完整审计、构建、安装与相关功能检查，并立即同步所有相关文档。
 
 ## 安全与清理规则
 
