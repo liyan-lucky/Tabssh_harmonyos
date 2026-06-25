@@ -13,6 +13,7 @@
 - `entry/src/main/cpp/`：N-API、Mock Core 与 libssh2 实现入口。
 - `entry/src/main/ets/common/terminal/`：有样式单元格、颜色、备用屏、滚动区、宽字符和协议回复的 VT 解析器；当前仍不是完整 xterm 模拟器。
 - `docs/`：权威接力、架构、路径、测试和历史资料。
+- `docs/BUILD_READY.md`：当前 `main` 是否可以进入构建测试、优先验证项和测试结果回填规则。
 - `docs/ANDROID_PARITY_ROADMAP.md`：Android 版功能对齐优先级路线图；按 P0/P1/P2/P3 拆分实现和验收。
 - `docs/PULL_TEST_GUIDE.md`：拉取 `main` 后的本地一键检查、Mock/真实构建、安装冒烟和设备功能验证顺序。
 - `docs/UPSTREAM_REFERENCES.md`：外部 Web/Android/Desktop 参考仓库的路径、commit 与用途。
