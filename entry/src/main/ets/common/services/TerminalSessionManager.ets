@@ -48,6 +48,7 @@ class TerminalSessionManagerImpl {
     tab.pendingHostKey = hostKey.fingerprint;
     tab.hostKeyAlgorithm = hostKey.algorithm;
     if (!connectResult.ok) {
+      ProfileRepository.recordConnectFailure(tab.profileId, connectResult.message);
       return tab;
     }
     const channelId: string = await NativeSshCore.openShell(sessionId);
@@ -58,6 +59,7 @@ class TerminalSessionManagerImpl {
     if (channelId.length === 0) {
       current.statusCode = -1;
       current.statusMessage = 'shell / PTY 打开失败';
+      ProfileRepository.recordConnectFailure(current.profileId, current.statusMessage);
       return current;
     }
     current.channelId = channelId;
@@ -68,6 +70,7 @@ class TerminalSessionManagerImpl {
     current.statusCode = 0;
     current.statusMessage = 'SSH authenticated and PTY opened';
     current.pendingHostKey = '';
+    ProfileRepository.recordConnectSuccess(current.profileId);
     const initialRead: NativeJsonResult = await NativeSshCore.read(channelId);
     this.applyReadResult(current, initialRead);
     return current;
@@ -93,6 +96,7 @@ class TerminalSessionManagerImpl {
     if (!confirmation.ok) {
       tab.statusCode = confirmation.code;
       tab.statusMessage = confirmation.message;
+      ProfileRepository.recordConnectFailure(tab.profileId, confirmation.message);
       return tab;
     }
     tab.statusMessage = 'HostKey 已确认，正在认证并打开 PTY…';
@@ -158,6 +162,7 @@ class TerminalSessionManagerImpl {
     if (profile === undefined) {
       tab.statusCode = 1005;
       tab.statusMessage = '重连配置已不存在';
+      ProfileRepository.recordConnectFailure(tab.profileId, tab.statusMessage);
       return tab;
     }
     tab.reconnecting = true;
@@ -192,6 +197,7 @@ class TerminalSessionManagerImpl {
         afterError.reconnecting = false;
         afterError.statusCode = 1007;
         afterError.statusMessage = '重连任务异常';
+        ProfileRepository.recordConnectFailure(afterError.profileId, afterError.statusMessage);
       }
       return afterError;
     }
@@ -202,6 +208,7 @@ class TerminalSessionManagerImpl {
     tab.reconnecting = false;
     tab.statusCode = 1007;
     tab.statusMessage = message.length > 0 ? '连接已中断：' + message : '连接已中断';
+    ProfileRepository.recordConnectFailure(tab.profileId, tab.statusMessage);
   }
 
   private applyReadResult(tab: TerminalTab, result: NativeJsonResult): void {
@@ -214,6 +221,9 @@ class TerminalSessionManagerImpl {
       tab.reconnecting = false;
       tab.statusCode = result.code === 0 ? 1008 : 1007;
       tab.statusMessage = result.code === 0 ? '远端 shell 已正常结束' : '远端 shell 异常结束';
+      if (result.code !== 0) {
+        ProfileRepository.recordConnectFailure(tab.profileId, tab.statusMessage);
+      }
     }
   }
 
