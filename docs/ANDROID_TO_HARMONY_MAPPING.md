@@ -39,7 +39,7 @@
 | 凭据安全 | HUKS/ASSET、AES-256-GCM、生物识别、自动锁、内存擦除 | profile JSON/口令擦除源码编码中；安全存储与生物识别未开始 |
 | 隐私防护 | 截图保护、剪贴板自动清除、零遥测 | 窗口隐私保护曾编码；剪贴板清理/零遥测审计待补 |
 | 主题/可访问性 | 22 主题、自定义/WCAG、字体、TalkBack、高对比、键盘导航、四语言 | 未开始 |
-| 连接管理 | RDB、分组、收藏、搜索、8 种排序、统计、日志、批量编辑 | 模型与内存仓库已支持分组、收藏字段、搜索过滤、8 类排序和连接成功/失败统计；首页筛选 UI、RDB、日志和批量编辑未完成 |
+| 连接管理 | RDB、分组、收藏、搜索、8 种排序、统计、日志、批量编辑 | 模型和内存仓库已支持分组、收藏、搜索、8 类排序和连接成功/失败统计；首页已接搜索/收藏/排序 UI；RDB、分组编辑、日志、批量编辑和设备证据未完成 |
 | 监控/通知 | TCP 探测、CPU/内存/磁盘阈值、恢复通知、冷却时间 | 占位页；未开始 |
 | 备份/同步 | 加密 ZIP、SAF 云盘、PBKDF2、三方合并/冲突 UI | syncVersion、syncDeviceId 字段骨架；加密备份/同步未开始 |
 | 自动化/服务卡片 | Tasker、Intent/deep link、Widget/FormExtension | 未开始 |
@@ -51,7 +51,7 @@
 | 8 家云厂商 | DO/Hetzner/Linode/Vultr/AWS/GCP/Azure/OCI、状态/电源/SSH | 未开始 |
 | VNC RFB | Tight/ZRLE/CopyRect/Hextile/CoRRE/RRE、Fence、resize、DES auth、键盘 | 未开始 |
 
-## 本轮对齐新增字段与内存能力
+## 本轮对齐新增字段、内存能力与 UI
 
 `entry/src/main/ets/common/models/ConnectionProfile.ets` 已增加 Android Profile 常见能力所需字段：
 
@@ -63,6 +63,6 @@
 - 管理：`groupId`、`sortOrder`、`favorite`、`lastConnectedAt`、`connectionCount`、`lastErrorMessage`、`remarks`
 - 同步：`createdAt`、`modifiedAt`、`syncVersion`、`syncDeviceId`
 
-`ConnectionGroup.ets` 和 `ProfileRepository.ets` 已增加默认分组、过滤、排序和连接成功/失败统计入口。当前仍是内存数据，应用退出即丢失；字段未接 UI、Native、RDB 和真实验收前，不能把对应 Android 功能标记为完成。
+`ConnectionGroup.ets` 和 `ProfileRepository.ets` 已增加默认分组、过滤、排序和连接成功/失败统计入口。`Index.ets` 已保持现有 UI 样式接入搜索、收藏筛选、排序芯片、收藏切换和统计展示。当前仍是内存数据，应用退出即丢失；字段/UI 未接 RDB 和设备验收前，不能把对应 Android 功能标记为完成。
 
 只有矩阵行的全部子项在目标 HarmonyOS API 上取得端到端证据，才可把该行标成完成。
