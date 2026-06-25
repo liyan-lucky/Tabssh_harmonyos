@@ -50,10 +50,16 @@
 
 ## 构建与测试
 
-禁止直接在仓库内留下构建产物。先读 `docs/PULL_TEST_GUIDE.md`：
+禁止直接在仓库内留下构建产物。先读 `docs/PULL_TEST_GUIDE.md`。
 
-- Mock fallback：运行 `scripts\audit_project.ps1`、`scripts\build_mock_hap.ps1`、`scripts\verify_mock_hap.ps1`。
-- 真实 Core：先运行 `scripts\build_native_dependencies.ps1`，再运行 `scripts\build_real_hap.ps1`、`scripts\verify_real_hap.ps1`。
+推荐先跑默认一键检查：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
+```
+
+- Mock fallback 手动流程：运行 `scripts\audit_project.ps1`、`scripts\build_mock_hap.ps1`、`scripts\verify_mock_hap.ps1`。
+- 真实 Core 手动流程：先运行 `scripts\build_native_dependencies.ps1`，再运行 `scripts\build_real_hap.ps1`、`scripts\verify_real_hap.ps1`。
 - 所有 stage、依赖、日志和最终 HAP 必须进入 `%VSCODE_ROOT%\99_Temp` 的项目专属路径。
 
 ## 重要说明
