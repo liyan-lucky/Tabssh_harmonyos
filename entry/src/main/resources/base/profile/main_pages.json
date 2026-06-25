@@ -2,6 +2,7 @@
   "src": [
     "pages/Index",
     "pages/ConnectionEditPage",
+    "pages/ConnectionGroupPage",
     "pages/TerminalPage",
     "pages/SftpPage",
     "pages/PortForwardPage",
