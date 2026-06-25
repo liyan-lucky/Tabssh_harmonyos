@@ -8,14 +8,15 @@
 4. `ANDROID_TO_HARMONY_MAPPING.md`：Android 版能力矩阵和当前 HarmonyOS 对齐状态。
 5. `ANDROID_PARITY_ROADMAP.md`：Android 功能对齐路线图和优先级。
 6. `CORE.md`：Mock/真实 Native Core 架构和安全要求。
-7. `BUILD_TEST.md`：构建、设备验证和单次完整验收规则。
-8. `PULL_TEST_GUIDE.md`：拉取分支后的 Mock、真实 Core、SFTP、转发和重连测试步骤。
-9. `ISSUES.md`：已知问题与风险。
-10. `FILES.md`、`UI.md`：文件职责与页面结构。
-11. `PROICONS_ICONS.md`：唯一允许的图标来源、映射和审计规则。
-12. `UPSTREAM_REFERENCES.md`：TabSSH Web/Android/Desktop 上游参考源码。
-13. `GIT_PUBLISH.md`：提交、推送和 Release 验收。
-14. `NEW_CHAT_PROMPT.md`：新对话可直接复制的提示词。
+7. `BUILD_READY.md`：当前 `main` 是否可以进入构建测试，以及本轮优先验证项。
+8. `BUILD_TEST.md`：构建、设备验证和单次完整验收规则。
+9. `PULL_TEST_GUIDE.md`：拉取 `main` 后的 Mock、真实 Core、SFTP、转发和重连测试步骤。
+10. `ISSUES.md`：已知问题与风险。
+11. `FILES.md`、`UI.md`：文件职责与页面结构。
+12. `PROICONS_ICONS.md`：唯一允许的图标来源、映射和审计规则。
+13. `UPSTREAM_REFERENCES.md`：TabSSH Web/Android/Desktop 上游参考源码。
+14. `GIT_PUBLISH.md`：提交、推送和 Release 验收。
+15. `NEW_CHAT_PROMPT.md`：新对话可直接复制的提示词。
 
 历史/专项资料：`IMPLEMENTATION_STEPS.md`、`LIBSSH2_COMPILE_GUIDE.md`、`NATIVE_CORE_FUNCTIONS.md`。
 
