@@ -10,13 +10,16 @@
 
 当前首页连接页已保持现有浅蓝背景、白色圆角卡片、蓝色芯片和悬浮胶囊底栏风格，接入搜索、收藏筛选、排序芯片、收藏切换、连接次数和上次失败提示。该 UI 已编码但尚未取得最新 HAP 编译和设备渲染证据。
 
-`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 持久化、分组编辑 UI、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
+`ConnectionGroupPage.ets` 已新增并注册到 `main_pages.json`，可承载分组列表、新建分组、折叠/展开、删除空分组和每组主机数。该页面沿用现有卡片风格，当前只接内存仓库，首页入口、RDB 持久化、重命名和设备点击证据仍待补。
+
+`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 持久化、首页分组入口、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
 
 ## 当前必须补的新证据
 
 - 运行 `scripts/run_local_checks.ps1` 后生成的 `summary_*.md` 结论。
 - 运行 `scripts/install_and_smoke.ps1` 后生成的 `summary_*.md` 结论。
 - 最新首页连接筛选 UI 的 HAP 构建、安装、搜索/收藏/排序点击和页面渲染证据。
+- 最新连接分组页的 HAP 构建、路由跳转、分组新增、折叠/展开和删除空分组证据。
 - 最新 ProIcons 资源包的 HAP 构建、安装和页面渲染证据。
 - 最新终端 Span 渲染、复制、视口 resize、复杂 TUI 和性能证据。
 - 三类端口转发真实 HAP 的逐字节流量证据。
