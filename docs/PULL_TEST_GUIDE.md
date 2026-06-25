@@ -100,9 +100,36 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_real_hap.ps1
 
 `verify_real_hap.ps1` 只证明包内是 real-core marker 和正确 ABI，不证明网络功能完成。
 
-## 7. 推荐设备测试顺序
+## 7. 安装与冷启动冒烟
 
-### 7.1 基础连接
+构建并验包后，可安装到 hdc 默认设备：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps1
+```
+
+指定 HAP 和设备：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps1 `
+  -HapPath "..\99_Temp\harmonyos_build\10_Tabssh_harmonyos\entry-default-unsigned-real.hap" `
+  -DeviceId "127.0.0.1:5555"
+```
+
+该脚本会：
+
+- 使用 hdc 安装 HAP。
+- 启动 `com.open.tabssh/EntryAbility`。
+- 查询 bundle dump 和 PID。
+- 过滤 `com.open.tabssh|OpenTabSsh|FATAL|cppcrash|jscrash|appfreeze|APP_INPUT_BLOCK` 相关 hilog 线索。
+- 尝试列出 faultlogger。
+- 输出摘要到 `99_Temp\tabssh_harmonyos_logs\install_smoke\summary_*.md`。
+
+这只证明安装/冷启动和基础日志采集，不证明 SSH、SFTP、端口转发或发布签名通过。
+
+## 8. 推荐设备测试顺序
+
+### 8.1 基础连接
 
 1. 新建连接。
 2. host/port/username 在 UI 输入。
@@ -117,7 +144,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_real_hap.ps1
 - 正确密码进入 PTY shell。
 - 再次连接同一 profile 不重复出现首次 HostKey 提示。
 
-### 7.2 终端
+### 8.2 终端
 
 在远端执行：
 
@@ -137,7 +164,7 @@ stty size
 
 当前终端是“较完整 VT 基线”，不能直接宣称完整 xterm。
 
-### 7.3 SFTP
+### 8.3 SFTP
 
 先测只读：
 
@@ -156,7 +183,7 @@ stty size
 
 大文件、取消、中断恢复仍需单独取证。
 
-### 7.4 端口转发
+### 8.4 端口转发
 
 三类都要逐字节验证：
 
@@ -168,7 +195,7 @@ stty size
 
 端口转发源码存在不等于完成；必须有真实流量证据。
 
-### 7.5 断线与重连
+### 8.5 断线与重连
 
 测试：
 
@@ -184,7 +211,7 @@ stty size
 - HostKey 变化、认证失败、无效配置、正常 shell 退出不进入重连风暴。
 - 断开前 channel、forward、session、socket 被清理。
 
-## 8. 当前不能写成完成的内容
+## 9. 当前不能写成完成的内容
 
 - HUKS/ASSET 凭据安全存储。
 - arm64 真机真实 SSH 完整验收。
@@ -193,7 +220,7 @@ stty size
 - 三类端口转发真实 HAP 流量证据。
 - 后台保持、RDB 持久化、ProxyJump、Mosh、X11、云/虚拟化/VNC。
 
-## 9. 测试完成后要回填
+## 10. 测试完成后要回填
 
 每次测试后同步：
 
