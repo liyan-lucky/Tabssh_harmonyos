@@ -12,6 +12,7 @@
 - Mock fallback 新契约已完成 x86_64 模拟器覆盖安装和冷启动验证；证据见 `BUILD_TEST.md`。
 - `scripts/run_local_checks.ps1` 已作为本地拉取后一键检查入口：默认串联 `git diff --check`、静态审计、终端解析器测试、Mock 构建和验包；可选 `-WithRealCore` 与 `-BuildDependencies` 执行真实 HAP 与三方依赖路径。
 - `scripts/install_and_smoke.ps1` 已作为安装/冷启动冒烟入口：安装 `99_Temp` 中的 HAP、启动 `com.open.tabssh`、采集 bundle/PID/hilog/faultlogger 线索，并输出无凭据摘要；该脚本只做安装启动检查，不标记 SSH 功能完成。
+- `scripts/audit_project.ps1` 已增加连接分组审计项：检查首页筛选 UI、分组仓库接口、分组页面、页面路由和文档同步，减少继续完善时漏改路由/文档的风险。
 
 ## 已编码、待真实构建与端到端验证
 
