@@ -3,7 +3,7 @@
 - `AppScope/`：Bundle、版本和应用资源。
 - `entry/src/main/ets/pages/`：ArkUI 页面集合。
 - `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接内存分组选择器，可把主机关联到分组，凭据仍只保留运行内存。
-- `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，当前使用内存仓库，支持新建、改名、换色、上移/下移、折叠和空分组移除，页面已注册路由但首页入口仍待接入。
+- `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，当前使用内存仓库，支持新建、改名、换色、上移/下移、折叠和空分组处理，页面已注册路由但首页入口仍待接入。
 - `entry/src/main/resources/base/profile/main_pages.json`：页面路由清单；已注册 `pages/ConnectionGroupPage`。
 - `entry/src/main/ets/common/`：模型、Native 包装、会话管理和内存仓库。
 - `entry/src/main/ets/common/models/ConnectionProfile.ets`：连接配置模型；已扩展 Android 常见字段，但字段骨架不等于功能完成。
@@ -15,6 +15,7 @@
 - `entry/src/main/ets/common/terminal/`：有样式单元格、颜色、备用屏、滚动区、宽字符和协议回复的 VT 解析器；当前仍不是完整 xterm 模拟器。
 - `docs/`：权威接力、架构、路径、测试和历史资料。
 - `docs/BUILD_READY.md`：当前 `main` 是否可以进入构建测试、优先验证项和测试结果回填规则。
+- `docs/CONNECTION_GROUP_TEST.md`：连接分组专项测试指南，覆盖编辑页分组选择、分组页交互和专项审计。
 - `docs/ANDROID_PARITY_ROADMAP.md`：Android 版功能对齐优先级路线图；按 P0/P1/P2/P3 拆分实现和验收。
 - `docs/PULL_TEST_GUIDE.md`：拉取 `main` 后的本地一键检查、Mock/真实构建、安装冒烟和设备功能验证顺序。
 - `docs/UPSTREAM_REFERENCES.md`：外部 Web/Android/Desktop 参考仓库的路径、commit 与用途。
