@@ -61,6 +61,7 @@ function Invoke-LoggedStep([string]$Name, [string]$FilePath, [string[]]$Argument
 try {
   Invoke-LoggedStep "git-diff-check" "git.exe" @("diff", "--check")
   Invoke-LoggedStep "audit-project" "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "audit_project.ps1"), "-ReportPath", (Join-Path $ReportRoot "project_audit_latest.md"))
+  Invoke-LoggedStep "audit-connection-groups" "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "audit_connection_groups.ps1"), "-ReportPath", (Join-Path $ReportRoot "connection_group_audit_latest.md"))
 
   if (-not $SkipTerminalEmulator) {
     Invoke-LoggedStep "terminal-emulator" "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "test_terminal_emulator.ps1"))
