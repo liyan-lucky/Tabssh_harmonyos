@@ -10,10 +10,12 @@ if ([string]::IsNullOrWhiteSpace($ReportPath)) {
 $reportPath = [IO.Path]::GetFullPath($ReportPath)
 
 $groupPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\ConnectionGroupPage.ets"
+$editPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\ConnectionEditPage.ets"
 $mainPagesPath = Join-Path $projectRoot "entry\src\main\resources\base\profile\main_pages.json"
 $repositoryPath = Join-Path $projectRoot "entry\src\main\ets\common\storage\ProfileRepository.ets"
 
 $groupPage = if (Test-Path -LiteralPath $groupPagePath) { Get-Content -LiteralPath $groupPagePath -Raw } else { "" }
+$editPage = if (Test-Path -LiteralPath $editPagePath) { Get-Content -LiteralPath $editPagePath -Raw } else { "" }
 $mainPages = if (Test-Path -LiteralPath $mainPagesPath) { Get-Content -LiteralPath $mainPagesPath -Raw } else { "" }
 $repository = if (Test-Path -LiteralPath $repositoryPath) { Get-Content -LiteralPath $repositoryPath -Raw } else { "" }
 $allDocs = (Get-ChildItem -LiteralPath $projectRoot -Filter *.md -File -Recurse | Get-Content -Raw) -join "`n"
@@ -29,7 +31,9 @@ $checks = @(
   [PSCustomObject]@{ Name = "group-collapse"; Pass = $groupPage.Contains("toggleCollapsed") -and $groupPage.Contains("collapsed") },
   [PSCustomObject]@{ Name = "group-delete-guard"; Pass = $groupPage.Contains("默认分组不能删除") -and $groupPage.Contains("该分组下还有主机") },
   [PSCustomObject]@{ Name = "group-memory-warning"; Pass = $groupPage.Contains("内存") -and $groupPage.Contains("RDB") },
-  [PSCustomObject]@{ Name = "group-docs"; Pass = $allDocs.Contains("ConnectionGroupPage") -and $allDocs.Contains("连接分组") -and $allDocs.Contains("改名") }
+  [PSCustomObject]@{ Name = "edit-page-group-list"; Pass = $editPage.Contains("ProfileRepository.listGroups") -and $editPage.Contains("所属分组") },
+  [PSCustomObject]@{ Name = "edit-page-group-save"; Pass = $editPage.Contains("this.profile.groupId") -and $editPage.Contains("GroupChip") },
+  [PSCustomObject]@{ Name = "group-docs"; Pass = $allDocs.Contains("ConnectionGroupPage") -and $allDocs.Contains("连接分组") -and $allDocs.Contains("改名") -and $allDocs.Contains("所属分组") }
 )
 
 $failed = @($checks | Where-Object { -not $_.Pass })
@@ -41,7 +45,7 @@ $lines = @(
   "- Checks: $($checks.Count)",
   "- PASS: $passCount",
   "- FAIL: $($failed.Count)",
-  "- Scope: connection group route, in-memory repository API, page actions, documentation sync",
+  "- Scope: connection group route, edit-page group selector, in-memory repository API, page actions, documentation sync",
   ""
 )
 if ($failed.Count -gt 0) {
