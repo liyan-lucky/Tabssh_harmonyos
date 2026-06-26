@@ -10,7 +10,7 @@ if ([string]::IsNullOrWhiteSpace($ReportPath)) {
 $reportPath = [IO.Path]::GetFullPath($ReportPath)
 $required = @(
   "README.md", "README_zh.md", "CHANGELOG.md", "LICENSE.md", "docs\README.md", "docs\AGENT_HANDOFF.md",
-  "docs\WORKSPACE_PATHS.md", "docs\BUILD_TEST.md", "docs\CORE.md", "docs\PROGRESS.md", "docs\PROICONS_ICONS.md", "docs\NEW_CHAT_PROMPT.md",
+  "docs\WORKSPACE_PATHS.md", "docs\BUILD_READY.md", "docs\BUILD_TEST.md", "docs\CORE.md", "docs\PROGRESS.md", "docs\PROICONS_ICONS.md", "docs\NEW_CHAT_PROMPT.md",
   "scripts\stage_project_for_build.ps1", "scripts\build_mock_hap.ps1", "scripts\verify_mock_hap.ps1",
   "scripts\build_native_dependencies.ps1", "scripts\build_real_hap.ps1", "scripts\verify_real_hap.ps1",
   "scripts\clean_project.ps1", "scripts\backup_project.ps1"
@@ -23,6 +23,7 @@ $app = Get-Content -LiteralPath (Join-Path $projectRoot "AppScope\app.json5") -R
 $profile = Get-Content -LiteralPath (Join-Path $projectRoot "build-profile.json5") -Raw
 $entryProfile = Get-Content -LiteralPath (Join-Path $projectRoot "entry\build-profile.json5") -Raw
 $moduleProfile = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\module.json5") -Raw
+$mainPages = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\resources\base\profile\main_pages.json") -Raw
 $cmake = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\CMakeLists.txt") -Raw
 $repository = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\common\storage\ProfileRepository.ets") -Raw
 $nativeHeader = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\cpp\native_ssh_core.h") -Raw
@@ -34,6 +35,8 @@ $terminalManager = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\m
 $terminalEmulator = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\common\terminal\TerminalEmulator.ets") -Raw
 $sftpPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\SftpPage.ets") -Raw
 $indexPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\Index.ets") -Raw
+$groupPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\ConnectionGroupPage.ets"
+$groupPage = if (Test-Path -LiteralPath $groupPagePath) { Get-Content -LiteralPath $groupPagePath -Raw } else { "" }
 $forwardPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\PortForwardPage.ets") -Raw
 $uiSource = (Get-ChildItem -LiteralPath (Join-Path $projectRoot "entry\src\main\ets") -Filter *.ets -File -Recurse |
   Get-Content -Raw -Encoding UTF8) -join "`n"
@@ -87,6 +90,11 @@ $checks += @(
   [PSCustomObject]@{ Name = "terminal-styled-ui"; Pass = $terminalPage.Contains("TerminalRenderRun") -and $terminalPage.Contains("Span(run.text)") -and $terminalPage.Contains("textBackgroundStyle") -and $terminalPage.Contains("copyOption") },
   [PSCustomObject]@{ Name = "terminal-pty-resize"; Pass = $terminalPage.Contains("updateTerminalSize") -and $terminalManager.Contains("NativeSshCore.resize") },
   [PSCustomObject]@{ Name = "terminal-application-modes"; Pass = $terminalPage.Contains("isApplicationCursorKeysEnabled") -and $terminalPage.Contains("isBracketedPasteEnabled") },
+  [PSCustomObject]@{ Name = "connection-filter-ui"; Pass = $indexPage.Contains("搜索名称、主机、用户或备注") -and $indexPage.Contains("只看收藏") -and $indexPage.Contains("SORT_FAVORITE_FIRST") },
+  [PSCustomObject]@{ Name = "connection-group-repository"; Pass = $repository.Contains("listGroups") -and $repository.Contains("saveGroup") -and $repository.Contains("removeGroup") },
+  [PSCustomObject]@{ Name = "connection-group-page"; Pass = (Test-Path -LiteralPath $groupPagePath) -and $groupPage.Contains("struct ConnectionGroupPage") -and $groupPage.Contains("addGroup") -and $groupPage.Contains("removeGroup") },
+  [PSCustomObject]@{ Name = "connection-group-route"; Pass = $mainPages.Contains('"pages/ConnectionGroupPage"') },
+  [PSCustomObject]@{ Name = "connection-group-docs"; Pass = $allDocs.Contains("ConnectionGroupPage") -and $allDocs.Contains("连接分组页") -and $allDocs.Contains("BUILD_READY.md") },
   [PSCustomObject]@{ Name = "proicons-policy"; Pass = Test-Path -LiteralPath (Join-Path $projectRoot "docs\PROICONS_ICONS.md") },
   [PSCustomObject]@{ Name = "proicons-launcher"; Pass = $app.Contains('"icon": "$media:app_icon_proicons"') -and (Test-Path -LiteralPath (Join-Path $projectRoot "entry\src\main\resources\base\media\app_icon_proicons.svg")) },
   [PSCustomObject]@{ Name = "proicons-bottom-tabs"; Pass = $indexPage.Contains("settings_tune.svg") -and $indexPage.Contains("settings_network.svg") -and $indexPage.Contains("settings_monitor.svg") -and $indexPage.Contains("settings_person.svg") },
@@ -111,7 +119,7 @@ $lines = @(
   "- Checks: $($checks.Count)",
   "- PASS: $passPerRound",
   "- FAIL: $($failed.Count)",
-  "- Scope: repository structure, bundle/ABI consistency, Mock boundary, credential hygiene, ProIcons policy, path policy, generated-file cleanup",
+  "- Scope: repository structure, bundle/ABI consistency, Mock boundary, credential hygiene, ProIcons policy, connection grouping, path policy, generated-file cleanup",
   ""
 )
 if ($failed.Count -gt 0) {
