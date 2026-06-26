@@ -2,6 +2,7 @@
 
 - `AppScope/`：Bundle、版本和应用资源。
 - `entry/src/main/ets/pages/`：ArkUI 页面集合。
+- `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接内存分组选择器，可把主机关联到分组，凭据仍只保留运行内存。
 - `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，当前使用内存仓库，支持新建、改名、换色、上移/下移、折叠和空分组移除，页面已注册路由但首页入口仍待接入。
 - `entry/src/main/resources/base/profile/main_pages.json`：页面路由清单；已注册 `pages/ConnectionGroupPage`。
 - `entry/src/main/ets/common/`：模型、Native 包装、会话管理和内存仓库。
@@ -20,7 +21,7 @@
 - `docs/PROICONS_ICONS.md`：图标唯一来源、资源映射与审计规则。
 - `scripts/`：stage、构建、审计、清理、备份、安装冒烟和本地检查；输出必须进入 `99_Temp`。
 - `scripts/run_local_checks.ps1`：拉取后的一键本地检查入口，串联静态审计、终端解析器测试、Mock 构建/验包和可选真实 HAP 流程。
-- `scripts/audit_connection_groups.ps1`：连接分组专项静态审计；检查分组页面、路由、仓库接口、改名、换色、排序、折叠和文档同步。
+- `scripts/audit_connection_groups.ps1`：连接分组专项静态审计；检查分组页面、编辑页分组选择、路由、仓库接口、改名、换色、排序、折叠和文档同步。
 - `scripts/install_and_smoke.ps1`：HAP 安装与冷启动冒烟工具；采集 bundle/PID/hilog/faultlogger 线索，只证明安装启动，不证明 SSH 功能。
 - `scripts/test_terminal_emulator.ps1`：不落盘产物的终端解析器内存回归。
 - `.github/workflows/online-build.yml`：托管 runner 静态审计，以及受控 `tabssh-deveco` runner 的手动真实 HAP 构建。
