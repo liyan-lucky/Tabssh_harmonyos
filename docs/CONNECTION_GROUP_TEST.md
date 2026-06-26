@@ -1,0 +1,60 @@
+# 连接分组专项测试指南
+
+> 当前范围：`ConnectionEditPage.ets`、`ConnectionGroupPage.ets`、`ProfileRepository.ets` 和 `main_pages.json`。本文件只记录测试步骤，不把功能标记为完成。
+
+## 静态检查
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\audit_connection_groups.ps1
+```
+
+该脚本检查：
+
+- 分组页面文件存在。
+- `main_pages.json` 已注册 `pages/ConnectionGroupPage`。
+- 内存仓库存在 `listGroups`、`saveGroup`、`removeGroup`。
+- 分组页包含新建、改名、换色、上移/下移、折叠和页面提示。
+- 连接编辑页包含所属分组芯片选择。
+- 文档包含连接分组、改名和所属分组说明。
+
+## 连接编辑页测试
+
+1. 打开新建连接页。
+2. 确认页面展示“所属分组”。
+3. 确认已有分组以芯片形式展示。
+4. 点击不同分组芯片，选中颜色应变化。
+5. 保存后回到连接列表。
+6. 再次编辑该连接，应回显刚才选择的分组。
+
+当前分组数据来自内存仓库，应用退出后丢失属于预期。
+
+## 连接分组页测试
+
+1. 打开 `pages/ConnectionGroupPage`。
+2. 确认页面保持浅蓝背景、白色圆角卡片和轻阴影风格。
+3. 点击“新建”，列表应增加一个分组并进入名称编辑状态。
+4. 修改名称后点击“保存”，列表应显示新名称。
+5. 点击“取消”，名称编辑状态应退出。
+6. 点击色块，分组颜色应切换。
+7. 点击“上移”或“下移”，列表顺序应变化。
+8. 点击“折叠”或“展开”，状态文字应变化。
+9. 默认分组和非空分组应按页面提示保持安全保护。
+
+## 当前仍待补
+
+- 首页入口尚未接入。
+- RDB 持久化尚未接入。
+- 非空分组迁移尚未实现。
+- 拖拽排序尚未实现，当前是上移/下移按钮。
+- 尚未通过 HAP 构建和真机/模拟器点击验证。
+
+## 测试结果回填
+
+测试后同步：
+
+- `docs/BUILD_TEST.md`
+- `docs/PROGRESS.md`
+- `docs/ISSUES.md`
+- `reports/connection_group_audit_latest.md`
+
+只写摘要、通过项和失败项，不写服务器地址、用户名、密码、私钥、token 或原始设备日志。
