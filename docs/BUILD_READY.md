@@ -4,13 +4,14 @@
 
 ## 当前判断
 
-当前仓库已经可以进入本地构建测试。
+当前仓库已经可以进入本地构建测试，同时也可以继续做下一轮功能完善。
 
 原因：
 
 - 所有本轮新增页面已经写入源码树。
 - `pages/ConnectionGroupPage` 已注册到 `entry/src/main/resources/base/profile/main_pages.json`。
 - 首页连接筛选 UI、连接分组页、内存仓库分组接口和相关文档已经同步。
+- `scripts/audit_project.ps1` 已增加连接分组相关静态检查，会检查分组页、路由、仓库接口、首页筛选 UI 和文档记录。
 - 没有新增签名材料、凭据、构建产物或原始日志。
 
 ## 推荐先跑
@@ -26,6 +27,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -SkipMockBuild
 ```
+
+## 静态审计新增覆盖
+
+本轮后 `scripts/audit_project.ps1` 额外检查：
+
+- `connection-filter-ui`：首页搜索、收藏筛选、排序入口仍存在。
+- `connection-group-repository`：内存仓库包含 `listGroups`、`saveGroup`、`removeGroup`。
+- `connection-group-page`：`ConnectionGroupPage.ets` 存在，并包含新增/删除分组逻辑。
+- `connection-group-route`：`main_pages.json` 已注册 `pages/ConnectionGroupPage`。
+- `connection-group-docs`：分组页和构建就绪说明已写入文档。
 
 ## 构建后必须验证
 
@@ -47,7 +58,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 - 默认分组不能删除。
 - 空分组可删除，非空分组暂不删除。
 
-注意：当前首页入口尚未接入，分组页路由已注册但还需要下一轮把入口接入 `Index.ets`。
+注意：当前首页入口尚未接入，分组页路由已注册但还需要后续把入口接入 `Index.ets`。
 
 ### 基础页面回归
 
