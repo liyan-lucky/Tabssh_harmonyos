@@ -4,16 +4,19 @@ import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
 import common from '@ohos.app.ability.common';
 import { ConnectionProfile, createEmptyConnectionProfile, AUTH_PASSWORD, AUTH_PRIVATE_KEY } from '../common/models/ConnectionProfile';
+import { ConnectionGroup } from '../common/models/ConnectionGroup';
 import { ProfileRepository } from '../common/storage/ProfileRepository';
 
 @Entry
 @Component
 struct ConnectionEditPage {
   @State profile: ConnectionProfile = createEmptyConnectionProfile();
+  @State groups: ConnectionGroup[] = [];
   @State title: string = '新建连接';
   @State privateKeyStatus: string = '';
 
   aboutToAppear(): void {
+    this.groups = ProfileRepository.listGroups();
     const params = router.getParams() as Record<string, string>;
     if (params !== undefined && params['profileId'] !== undefined) {
       const found = ProfileRepository.get(params['profileId']);
@@ -22,6 +25,13 @@ struct ConnectionEditPage {
         this.title = '编辑连接';
       }
     }
+    if (this.profile.groupId.length === 0 && this.groups.length > 0) {
+      this.profile.groupId = this.groups[0].id;
+    }
+  }
+
+  onPageShow(): void {
+    this.groups = ProfileRepository.listGroups();
   }
 
   save(): void {
@@ -87,6 +97,18 @@ struct ConnectionEditPage {
     this.privateKeyStatus = '已清除当前连接的私钥。';
   }
 
+  @Builder
+  GroupChip(group: ConnectionGroup) {
+    Button(group.name)
+      .height(34)
+      .fontSize(13)
+      .fontColor(this.profile.groupId === group.id ? Color.White : '#64748B')
+      .backgroundColor(this.profile.groupId === group.id ? '#0A84FF' : '#EAF3FF')
+      .borderRadius(12)
+      .margin({ right: 8, bottom: 8 })
+      .onClick(() => this.profile.groupId = group.id)
+  }
+
   build() {
     Column() {
       Row() {
@@ -115,6 +137,33 @@ struct ConnectionEditPage {
           TextInput({ text: this.profile.username, placeholder: '用户名' })
             .onChange((value: string) => this.profile.username = value)
             .margin({ bottom: 10 })
+
+          Column() {
+            Text('所属分组')
+              .fontSize(13)
+              .fontColor('#94A3B8')
+              .width('100%')
+              .margin({ bottom: 8 })
+            if (this.groups.length === 0) {
+              Text('暂无分组，可先在连接分组页新建')
+                .fontSize(12)
+                .fontColor('#F59E0B')
+                .width('100%')
+                .margin({ bottom: 8 })
+            } else {
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.groups, (group: ConnectionGroup) => {
+                  this.GroupChip(group)
+                }, (group: ConnectionGroup) => group.id)
+              }
+              .width('100%')
+            }
+          }
+          .width('100%')
+          .padding(12)
+          .backgroundColor('#111827')
+          .borderRadius(14)
+          .margin({ bottom: 10 })
 
           Row() {
             Button('密码')
