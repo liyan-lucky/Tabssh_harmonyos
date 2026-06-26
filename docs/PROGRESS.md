@@ -10,9 +10,9 @@
 - 单次静态基线审计 29/29；Mock unsigned HAP 构建成功并确认双 ABI native entries。
 - Web/Android/Desktop 三份上游源码已在 `99_Temp\tabssh_reference` 建立浅克隆参考。
 - Mock fallback 新契约已完成 x86_64 模拟器覆盖安装和冷启动验证；证据见 `BUILD_TEST.md`。
-- `scripts/run_local_checks.ps1` 已作为本地拉取后一键检查入口：默认串联 `git diff --check`、静态审计、终端解析器测试、Mock 构建和验包；可选 `-WithRealCore` 与 `-BuildDependencies` 执行真实 HAP 与三方依赖路径。
+- `scripts/run_local_checks.ps1` 已作为本地拉取后一键检查入口：默认串联 `git diff --check`、全局静态审计、连接分组专项审计、终端解析器测试、Mock 构建和验包；可选 `-WithRealCore` 与 `-BuildDependencies` 执行真实 HAP 与三方依赖路径。
 - `scripts/install_and_smoke.ps1` 已作为安装/冷启动冒烟入口：安装 `99_Temp` 中的 HAP、启动 `com.open.tabssh`、采集 bundle/PID/hilog/faultlogger 线索，并输出无凭据摘要；该脚本只做安装启动检查，不标记 SSH 功能完成。
-- `scripts/audit_project.ps1` 已增加连接分组审计项：检查首页筛选 UI、分组仓库接口、分组页面、页面路由和文档同步，减少继续完善时漏改路由/文档的风险。
+- `scripts/audit_project.ps1` 已增加连接分组基础审计项；`scripts/audit_connection_groups.ps1` 已增加专项审计，并接入一键检查，覆盖分组页面、路由、仓库接口、改名、换色、排序、折叠和文档同步。
 
 ## 已编码、待真实构建与端到端验证
 
@@ -22,7 +22,7 @@
 - ArkTS 首次 HostKey/变更警告流程；凭据仅保留在运行内存，Mock 不再保存 profile JSON。
 - Android 对齐字段骨架已扩展到 `ConnectionProfile`：HostKey 元数据、代理认证、IPv4/IPv6 模式、压缩、agent/X11/Mosh、RemoteCommand、SendEnv、RequestTTY、多路复用、分组/收藏/排序/统计、同步元数据等。字段仅代表可承载配置，未接 UI/Native/RDB 的功能不能标记完成。
 - 新增 `ConnectionGroup`、`ProfileFilter` 与内存仓库分组/过滤/排序接口，用于对齐 Android 的连接管理基础；当前仍未接 RDB 或持久化。
-- 新增 `ConnectionGroupPage` 并注册页面路由，用现有浅蓝背景、白色圆角卡片和 ProIcons 风格展示分组列表、新建分组、折叠/展开、删除空分组和每组主机数。当前首页入口未接入，且尚未 HAP 编译/设备点击验证。
+- `ConnectionGroupPage` 已注册页面路由，用现有浅蓝背景、白色圆角卡片和 ProIcons 风格展示分组列表、新建分组、改名、换色、上移/下移、折叠/展开、空分组移除和每组主机数。当前首页入口未接入，且尚未 HAP 编译/设备点击验证。
 - 首页连接页已保持现有浅蓝背景、白色圆角卡片、蓝色芯片和悬浮胶囊底栏风格，接入连接搜索、收藏筛选、排序芯片、收藏切换、连接次数/上次失败提示。该 UI 仍需 HAP 编译和设备渲染验证。
 - 会话管理已把认证成功写入内存统计 `lastConnectedAt/connectionCount`，把认证失败、HostKey 确认失败、异常中断和重连异常写入 `lastErrorMessage`；退出应用后仍会丢失，未完成 Android Room/RDB 级统计。
 - 私钥通过系统文档选择器复制到应用私有 `filesDir/ssh_keys`，不记录原文件 URI 或内容，并提供应用内删除入口；真实包已在 x86_64 模拟器覆盖安装，端到端认证待验。
