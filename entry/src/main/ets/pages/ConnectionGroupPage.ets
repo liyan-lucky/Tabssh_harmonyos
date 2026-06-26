@@ -14,12 +14,15 @@ import { createIconColorFilter } from '../common/IconUtils';
 struct ConnectionGroupPage {
   @State groups: ConnectionGroup[] = [];
   @State nextGroupIndex: number = 1;
+  @State editingGroupId: string = '';
+  @State editingName: string = '';
 
   private readonly accentColor: string = '#0A84FF';
   private readonly pageBg: string = '#F3F7FF';
   private readonly textPrimary: string = '#111827';
   private readonly textSecond: string = '#8A8F99';
   private readonly lineColor: string = '#ECEEF3';
+  private readonly palette: string[] = ['#38BDF8', '#0A84FF', '#35C7D7', '#2EA8E5', '#22C55E', '#F59E0B'];
 
   aboutToAppear(): void {
     this.reload();
@@ -37,6 +40,10 @@ struct ConnectionGroupPage {
     promptAction.showToast({ message: message, duration: 1800 });
   }
 
+  private cloneGroup(group: ConnectionGroup): ConnectionGroup {
+    return JSON.parse(JSON.stringify(group)) as ConnectionGroup;
+  }
+
   private countProfiles(groupId: string): number {
     const filter: ProfileFilter = createDefaultProfileFilter();
     filter.groupId = groupId;
@@ -44,20 +51,70 @@ struct ConnectionGroupPage {
   }
 
   private addGroup(): void {
-    const colors: string[] = ['#38BDF8', '#0A84FF', '#35C7D7', '#2EA8E5'];
     const index: number = this.nextGroupIndex;
-    const group: ConnectionGroup = createConnectionGroup('新分组 ' + index.toString(), colors[index % colors.length]);
+    const group: ConnectionGroup = createConnectionGroup('新分组 ' + index.toString(), this.palette[index % this.palette.length]);
     group.sortOrder = this.groups.length + 1;
     ProfileRepository.saveGroup(group);
     this.nextGroupIndex = index + 1;
     this.reload();
-    this.toast('已新增分组');
+    this.startRename(group);
+    this.toast('已新增分组，可直接改名');
+  }
+
+  private startRename(group: ConnectionGroup): void {
+    this.editingGroupId = group.id;
+    this.editingName = group.name;
+  }
+
+  private cancelRename(): void {
+    this.editingGroupId = '';
+    this.editingName = '';
+  }
+
+  private saveRename(group: ConnectionGroup): void {
+    const name: string = this.editingName.trim();
+    if (name.length === 0) {
+      this.toast('分组名称不能为空');
+      return;
+    }
+    const updated: ConnectionGroup = this.cloneGroup(group);
+    updated.name = name;
+    ProfileRepository.saveGroup(updated);
+    this.cancelRename();
+    this.reload();
+    this.toast('已重命名分组');
   }
 
   private toggleCollapsed(group: ConnectionGroup): void {
-    const updated: ConnectionGroup = JSON.parse(JSON.stringify(group)) as ConnectionGroup;
+    const updated: ConnectionGroup = this.cloneGroup(group);
     updated.collapsed = !updated.collapsed;
     ProfileRepository.saveGroup(updated);
+    this.reload();
+  }
+
+  private cycleColor(group: ConnectionGroup): void {
+    const updated: ConnectionGroup = this.cloneGroup(group);
+    const currentIndex: number = this.palette.indexOf(updated.colorTag);
+    const nextIndex: number = currentIndex < 0 ? 0 : (currentIndex + 1) % this.palette.length;
+    updated.colorTag = this.palette[nextIndex];
+    ProfileRepository.saveGroup(updated);
+    this.reload();
+  }
+
+  private moveGroup(group: ConnectionGroup, direction: number): void {
+    const index: number = this.groups.findIndex((item: ConnectionGroup) => item.id === group.id);
+    const targetIndex: number = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= this.groups.length) {
+      this.toast(direction < 0 ? '已经是第一个分组' : '已经是最后一个分组');
+      return;
+    }
+    const current: ConnectionGroup = this.cloneGroup(this.groups[index]);
+    const target: ConnectionGroup = this.cloneGroup(this.groups[targetIndex]);
+    const currentOrder: number = current.sortOrder;
+    current.sortOrder = target.sortOrder;
+    target.sortOrder = currentOrder;
+    ProfileRepository.saveGroup(current);
+    ProfileRepository.saveGroup(target);
     this.reload();
   }
 
@@ -72,6 +129,7 @@ struct ConnectionGroupPage {
       return;
     }
     ProfileRepository.removeGroup(group.id);
+    this.cancelRename();
     this.reload();
     this.toast('已删除空分组');
   }
@@ -111,6 +169,41 @@ struct ConnectionGroupPage {
   }
 
   @Builder
+  MiniButton(title: string, color: string, bg: string, action: () => void) {
+    Text(title)
+      .fontSize(12)
+      .fontColor(color)
+      .padding({ left: 9, right: 9, top: 5, bottom: 5 })
+      .backgroundColor(bg)
+      .borderRadius(9)
+      .onClick(action)
+  }
+
+  @Builder
+  RenameEditor(group: ConnectionGroup) {
+    Column({ space: 8 }) {
+      TextInput({ placeholder: '输入分组名称', text: this.editingName })
+        .fontSize(14)
+        .fontColor(this.textPrimary)
+        .placeholderColor('#94A3B8')
+        .height(38)
+        .padding({ left: 10, right: 10 })
+        .backgroundColor('#F8FAFC')
+        .borderRadius(12)
+        .onChange((value: string) => {
+          this.editingName = value;
+        })
+      Row() {
+        this.MiniButton('保存', this.accentColor, '#EAF3FF', () => this.saveRename(group))
+        this.MiniButton('取消', '#64748B', '#F1F5F9', () => this.cancelRename())
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding({ left: 60, right: 12, bottom: 12 })
+  }
+
+  @Builder
   GroupRow(group: ConnectionGroup, index: number) {
     Column() {
       Row() {
@@ -126,6 +219,7 @@ struct ConnectionGroupPage {
         .backgroundColor('#F1F5F9')
         .borderRadius(12)
         .margin({ right: 10 })
+        .onClick(() => this.cycleColor(group))
 
         Column({ space: 4 }) {
           Row() {
@@ -136,6 +230,7 @@ struct ConnectionGroupPage {
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .layoutWeight(1)
+              .onClick(() => this.startRename(group))
             if (group.id === 'group-default') {
               Text('默认')
                 .fontSize(10)
@@ -150,31 +245,30 @@ struct ConnectionGroupPage {
           Text(this.countProfiles(group.id).toString() + ' 台主机 · ' + (group.collapsed ? '已折叠' : '已展开'))
             .fontSize(12)
             .fontColor(this.textSecond)
+          Text('点名称改名，点色块换色')
+            .fontSize(11)
+            .fontColor('#CBD5E1')
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
 
         Column({ space: 6 }) {
-          Text(group.collapsed ? '展开' : '折叠')
-            .fontSize(12)
-            .fontColor('#64748B')
-            .padding({ left: 9, right: 9, top: 5, bottom: 5 })
-            .backgroundColor('#F1F5F9')
-            .borderRadius(9)
-            .onClick(() => this.toggleCollapsed(group))
-          Text('删除')
-            .fontSize(12)
-            .fontColor(group.id === 'group-default' ? '#CBD5E1' : '#EF4444')
-            .padding({ left: 9, right: 9, top: 5, bottom: 5 })
-            .backgroundColor(group.id === 'group-default' ? '#F8FAFC' : '#FEF2F2')
-            .borderRadius(9)
-            .onClick(() => this.removeGroup(group))
+          Row({ space: 6 }) {
+            this.MiniButton('上移', index <= 0 ? '#CBD5E1' : '#64748B', '#F1F5F9', () => this.moveGroup(group, -1))
+            this.MiniButton('下移', index >= this.groups.length - 1 ? '#CBD5E1' : '#64748B', '#F1F5F9', () => this.moveGroup(group, 1))
+          }
+          this.MiniButton(group.collapsed ? '展开' : '折叠', '#64748B', '#F1F5F9', () => this.toggleCollapsed(group))
+          this.MiniButton('删除', group.id === 'group-default' ? '#CBD5E1' : '#EF4444', group.id === 'group-default' ? '#F8FAFC' : '#FEF2F2', () => this.removeGroup(group))
         }
         .alignItems(HorizontalAlign.End)
       }
       .width('100%')
-      .height(74)
+      .height(92)
       .padding({ left: 12, right: 12 })
+
+      if (this.editingGroupId === group.id) {
+        this.RenameEditor(group)
+      }
 
       if (index < this.groups.length - 1) {
         Divider()
@@ -196,7 +290,7 @@ struct ConnectionGroupPage {
               .fontWeight(FontWeight.Bold)
               .fontColor(this.textPrimary)
               .width('100%')
-            Text('当前仅为内存实现，退出应用后会丢失；RDB 持久化和主机分组编辑仍待接入。')
+            Text('当前仅为内存实现，退出应用后会丢失；已支持改名、换色、排序和折叠，仍待接入 RDB 与首页入口。')
               .fontSize(13)
               .fontColor(this.textSecond)
               .lineHeight(19)
