@@ -11,12 +11,13 @@
 7. `BUILD_READY.md`：当前 `main` 是否可以进入构建测试，以及本轮优先验证项。
 8. `BUILD_TEST.md`：构建、设备验证和单次完整验收规则。
 9. `PULL_TEST_GUIDE.md`：拉取 `main` 后的 Mock、真实 Core、SFTP、转发和重连测试步骤。
-10. `ISSUES.md`：已知问题与风险。
-11. `FILES.md`、`UI.md`：文件职责与页面结构。
-12. `PROICONS_ICONS.md`：唯一允许的图标来源、映射和审计规则。
-13. `UPSTREAM_REFERENCES.md`：TabSSH Web/Android/Desktop 上游参考源码。
-14. `GIT_PUBLISH.md`：提交、推送和 Release 验收。
-15. `NEW_CHAT_PROMPT.md`：新对话可直接复制的提示词。
+10. `CONNECTION_GROUP_TEST.md`：连接编辑页分组选择、连接分组页和专项审计测试步骤。
+11. `ISSUES.md`：已知问题与风险。
+12. `FILES.md`、`UI.md`：文件职责与页面结构。
+13. `PROICONS_ICONS.md`：唯一允许的图标来源、映射和审计规则。
+14. `UPSTREAM_REFERENCES.md`：TabSSH Web/Android/Desktop 上游参考源码。
+15. `GIT_PUBLISH.md`：提交、推送和 Release 验收。
+16. `NEW_CHAT_PROMPT.md`：新对话可直接复制的提示词。
 
 历史/专项资料：`IMPLEMENTATION_STEPS.md`、`LIBSSH2_COMPILE_GUIDE.md`、`NATIVE_CORE_FUNCTIONS.md`。
 
