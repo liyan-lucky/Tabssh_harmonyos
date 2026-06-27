@@ -3,13 +3,13 @@ name: TabSSH Linux HAP format build
 on:
   workflow_dispatch:
     inputs:
-      sdk_url:
-        description: Optional SDK archive URL. If empty, use secret HARMONYOS_SDK_URL.
+      sdk_sha256:
+        description: Optional SHA256 for HARMONYOS_SDK_URL archive
         required: false
         default: ""
         type: string
-      sdk_sha256:
-        description: Optional SHA256 for the SDK archive. If empty, skip hash check.
+      full_sha256:
+        description: Optional SHA256 for HARMONYOS_FULL_URL archive
         required: false
         default: ""
         type: string
@@ -29,56 +29,65 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Download and unpack HarmonyOS SDK package
+      - name: Download and unpack SDK packages
         shell: bash
         env:
-          INPUT_SDK_URL: ${{ inputs.sdk_url }}
-          INPUT_SDK_SHA256: ${{ inputs.sdk_sha256 }}
-          SECRET_SDK_URL: ${{ secrets.HARMONYOS_SDK_URL }}
-          SDK_DOWNLOAD_TOKEN: ${{ secrets.HARMONYOS_SDK_TOKEN }}
+          SDK_URL: ${{ secrets.HARMONYOS_SDK_URL }}
+          FULL_URL: ${{ secrets.HARMONYOS_FULL_URL }}
+          SDK_SHA256: ${{ inputs.sdk_sha256 }}
+          FULL_SHA256: ${{ inputs.full_sha256 }}
         run: |
           set -euo pipefail
-          SDK_URL="$INPUT_SDK_URL"
-          if [ -z "$SDK_URL" ]; then
-            SDK_URL="$SECRET_SDK_URL"
-          fi
-          if [ -z "$SDK_URL" ]; then
-            echo "SDK URL is required. Provide workflow input sdk_url or repository secret HARMONYOS_SDK_URL." >&2
+          if [ -z "$SDK_URL" ] && [ -z "$FULL_URL" ]; then
+            echo "HARMONYOS_SDK_URL or HARMONYOS_FULL_URL is required." >&2
             exit 1
           fi
 
           mkdir -p "$RUNNER_TEMP/harmony-sdk" "$RUNNER_TEMP/harmony-sdk-extract"
-          SDK_ARCHIVE="$RUNNER_TEMP/harmony-sdk/sdk-package"
-          if [ -n "$SDK_DOWNLOAD_TOKEN" ]; then
-            curl -fL --retry 3 --retry-delay 5 -H "Authorization: Bearer $SDK_DOWNLOAD_TOKEN" "$SDK_URL" -o "$SDK_ARCHIVE"
-          else
+
+          unpack_archive() {
+            local archive="$1"
+            local dest="$2"
+            mkdir -p "$dest"
+            if file "$archive" | grep -qi 'Zip archive'; then
+              unzip -q "$archive" -d "$dest"
+            elif file "$archive" | grep -Eqi 'gzip|XZ compressed|bzip2|tar archive'; then
+              tar -xf "$archive" -C "$dest"
+            else
+              echo "Unsupported archive format:" >&2
+              file "$archive" >&2
+              exit 1
+            fi
+          }
+
+          if [ -n "$SDK_URL" ]; then
+            SDK_ARCHIVE="$RUNNER_TEMP/harmony-sdk/sdk-package"
             curl -fL --retry 3 --retry-delay 5 "$SDK_URL" -o "$SDK_ARCHIVE"
+            if [ -n "$SDK_SHA256" ]; then
+              echo "$SDK_SHA256  $SDK_ARCHIVE" | sha256sum -c -
+            fi
+            unpack_archive "$SDK_ARCHIVE" "$RUNNER_TEMP/harmony-sdk-extract/sdk"
           fi
 
-          if [ -n "$INPUT_SDK_SHA256" ]; then
-            echo "$INPUT_SDK_SHA256  $SDK_ARCHIVE" | sha256sum -c -
+          if [ -n "$FULL_URL" ]; then
+            FULL_ARCHIVE="$RUNNER_TEMP/harmony-sdk/full-package"
+            curl -fL --retry 3 --retry-delay 5 "$FULL_URL" -o "$FULL_ARCHIVE"
+            if [ -n "$FULL_SHA256" ]; then
+              echo "$FULL_SHA256  $FULL_ARCHIVE" | sha256sum -c -
+            fi
+            unpack_archive "$FULL_ARCHIVE" "$RUNNER_TEMP/harmony-sdk-extract/full"
           fi
 
-          if file "$SDK_ARCHIVE" | grep -qi 'Zip archive'; then
-            unzip -q "$SDK_ARCHIVE" -d "$RUNNER_TEMP/harmony-sdk-extract"
-          elif file "$SDK_ARCHIVE" | grep -Eqi 'gzip|XZ compressed|bzip2|tar archive'; then
-            tar -xf "$SDK_ARCHIVE" -C "$RUNNER_TEMP/harmony-sdk-extract"
-          else
-            echo "Unsupported SDK archive format:" >&2
-            file "$SDK_ARCHIVE" >&2
-            exit 1
-          fi
+          find "$RUNNER_TEMP/harmony-sdk-extract" -maxdepth 4 -type d | sort | head -200
 
           HVIGOR_ENTRY="$(find "$RUNNER_TEMP/harmony-sdk-extract" -type f -path '*/hvigor/bin/hvigorw.js' -print -quit)"
           OPENHARMONY_DIR="$(find "$RUNNER_TEMP/harmony-sdk-extract" -type d -path '*/openharmony' -print -quit)"
           if [ -z "$HVIGOR_ENTRY" ]; then
-            echo "Cannot find tools/hvigor/bin/hvigorw.js in SDK package." >&2
-            find "$RUNNER_TEMP/harmony-sdk-extract" -maxdepth 5 -type d | sort | head -200 >&2
+            echo "Cannot find hvigor/bin/hvigorw.js." >&2
             exit 1
           fi
           if [ -z "$OPENHARMONY_DIR" ]; then
-            echo "Cannot find openharmony SDK directory in SDK package." >&2
-            find "$RUNNER_TEMP/harmony-sdk-extract" -maxdepth 5 -type d | sort | head -200 >&2
+            echo "Cannot find openharmony directory." >&2
             exit 1
           fi
 
@@ -116,7 +125,6 @@ jobs:
           mapfile -t HAPS < <(find . -type f -path '*/outputs/*' -name '*.hap' | sort)
           if [ "${#HAPS[@]}" -eq 0 ]; then
             echo "Build finished but no .hap was found under outputs." >&2
-            find . -type d -name outputs -print >&2 || true
             exit 1
           fi
           HAP="${HAPS[0]}"
