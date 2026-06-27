@@ -123,12 +123,58 @@ export function createEmptyConnectionProfile(): ConnectionProfile {
 }
 
 export function normalizeConnectionProfile(profile: ConnectionProfile): ConnectionProfile {
-  const base: ConnectionProfile = createEmptyConnectionProfile();
-  const merged: ConnectionProfile = Object.assign(base, profile) as ConnectionProfile;
-  merged.password = profile.password ?? '';
-  merged.privateKeyPassphrase = profile.privateKeyPassphrase ?? '';
+  const merged: ConnectionProfile = createEmptyConnectionProfile();
+
+  merged.id = profile.id.length > 0 ? profile.id : merged.id;
+  merged.name = profile.name.length > 0 ? profile.name : merged.name;
+  merged.host = profile.host.length > 0 ? profile.host : merged.host;
+  merged.port = profile.port > 0 ? profile.port : merged.port;
+  merged.username = profile.username.length > 0 ? profile.username : merged.username;
+  merged.authType = profile.authType.length > 0 ? profile.authType : AUTH_PASSWORD;
+  merged.password = profile.password;
+  merged.privateKeyPath = profile.privateKeyPath;
+  merged.privateKeyPassphrase = profile.privateKeyPassphrase;
+  merged.hostKeyFingerprint = profile.hostKeyFingerprint;
+  merged.hostKeyAlgorithm = profile.hostKeyAlgorithm;
+  merged.hostKeyTrustedAt = profile.hostKeyTrustedAt;
+  merged.jumpHostId = profile.jumpHostId;
+  merged.proxyType = profile.proxyType.length > 0 ? profile.proxyType : PROXY_NONE;
+  merged.proxyHost = profile.proxyHost;
+  merged.proxyPort = profile.proxyPort;
+  merged.proxyUsername = profile.proxyUsername;
+  merged.proxyAuthType = profile.proxyAuthType.length > 0 ? profile.proxyAuthType : AUTH_PASSWORD;
+  merged.proxyKeyId = profile.proxyKeyId;
+  merged.terminalType = profile.terminalType.length > 0 ? profile.terminalType : merged.terminalType;
+  merged.encoding = profile.encoding.length > 0 ? profile.encoding : merged.encoding;
+  merged.keepAliveSeconds = profile.keepAliveSeconds > 0 ? profile.keepAliveSeconds : merged.keepAliveSeconds;
+  merged.timeoutMilliseconds = profile.timeoutMilliseconds > 0 ? profile.timeoutMilliseconds : merged.timeoutMilliseconds;
+  merged.connectTimeoutMilliseconds = profile.connectTimeoutMilliseconds > 0 ? profile.connectTimeoutMilliseconds : merged.connectTimeoutMilliseconds;
+  merged.readTimeoutMilliseconds = profile.readTimeoutMilliseconds > 0 ? profile.readTimeoutMilliseconds : merged.readTimeoutMilliseconds;
+  merged.serverAliveIntervalSeconds = profile.serverAliveIntervalSeconds > 0 ? profile.serverAliveIntervalSeconds : merged.serverAliveIntervalSeconds;
+  merged.ipMode = profile.ipMode.length > 0 ? profile.ipMode : IP_MODE_AUTO;
+  merged.compression = profile.compression;
+  merged.agentForwarding = profile.agentForwarding;
+  merged.x11Forwarding = profile.x11Forwarding;
+  merged.moshMode = profile.moshMode;
+  merged.requestTty = profile.requestTty;
+  merged.remoteCommand = profile.remoteCommand;
   merged.sendEnv = Array.isArray(profile.sendEnv) ? profile.sendEnv : [];
-  merged.modifiedAt = merged.modifiedAt > 0 ? merged.modifiedAt : new Date().getTime();
+  merged.postConnectScript = profile.postConnectScript;
+  merged.multiplexerMode = profile.multiplexerMode.length > 0 ? profile.multiplexerMode : MULTIPLEXER_OFF;
+  merged.multiplexerSessionName = profile.multiplexerSessionName;
+  merged.colorTag = profile.colorTag.length > 0 ? profile.colorTag : merged.colorTag;
+  merged.groupId = profile.groupId;
+  merged.sortOrder = profile.sortOrder;
+  merged.favorite = profile.favorite;
+  merged.lastConnectedAt = profile.lastConnectedAt;
+  merged.connectionCount = profile.connectionCount;
+  merged.lastErrorMessage = profile.lastErrorMessage;
+  merged.remarks = profile.remarks;
+  merged.createdAt = profile.createdAt > 0 ? profile.createdAt : merged.createdAt;
+  merged.modifiedAt = profile.modifiedAt > 0 ? profile.modifiedAt : new Date().getTime();
+  merged.syncVersion = profile.syncVersion;
+  merged.syncDeviceId = profile.syncDeviceId;
+
   return merged;
 }
 
