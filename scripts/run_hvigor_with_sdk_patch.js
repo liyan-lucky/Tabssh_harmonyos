@@ -3,6 +3,7 @@ const path = require('path');
 const Module = require('module');
 const { createRequire } = require('module');
 
+const projectRoot = path.resolve(__dirname, '..');
 const toolsRoot = path.resolve(process.env.DEVECO_TOOLS_ROOT || 'C:/Program Files/Huawei/DevEco Studio/tools');
 const sdkRoot = path.resolve(process.env.TABSSH_HWSDK_ROOT || 'C:/Program Files/Huawei/DevEco Studio/sdk/default');
 const hvigorRoot = path.resolve(toolsRoot, 'hvigor');
@@ -118,6 +119,39 @@ function resolveProductName() {
   return process.env.BUILD_PLATFORM === 'openharmony' ? 'openharmony_verify' : 'default';
 }
 
+function walkFiles(rootDir, output) {
+  if (!rootDir || !fs.existsSync(rootDir)) return;
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      walkFiles(fullPath, output);
+    } else if (entry.isFile() && entry.name.endsWith('.hap')) {
+      output.push(fullPath);
+    }
+  }
+}
+
+function mirrorHapOutputs() {
+  const candidates = [];
+  walkFiles(projectRoot, candidates);
+  const runnerTemp = process.env.RUNNER_TEMP || '';
+  if (runnerTemp) walkFiles(runnerTemp, candidates);
+  const unique = Array.from(new Set(candidates)).sort();
+  if (unique.length === 0) {
+    console.warn('[TabSSH] No HAP output found to mirror.');
+    return;
+  }
+  const mirrorDir = path.resolve(projectRoot, 'entry/build/outputs/tabssh-mirror');
+  fs.mkdirSync(mirrorDir, { recursive: true });
+  unique.forEach((source, index) => {
+    const target = path.join(mirrorDir, index === 0 ? 'entry-default-unsigned.hap' : `entry-default-unsigned-${index}.hap`);
+    fs.copyFileSync(source, target);
+    console.log(`[TabSSH] Mirrored HAP: ${source} -> ${target}`);
+  });
+}
+
 if (require.main === module) {
   const tasks = process.argv.slice(2);
   const productName = resolveProductName();
@@ -134,5 +168,9 @@ if (require.main === module) {
     ...(tasks.length > 0 ? tasks : ['assembleHap'])
   ];
   console.log(`TabSSH Hvigor product=${productName} module=${moduleTarget}`);
-  hvigorRequire(hvigorEntry);
+  try {
+    hvigorRequire(hvigorEntry);
+  } finally {
+    mirrorHapOutputs();
+  }
 }
