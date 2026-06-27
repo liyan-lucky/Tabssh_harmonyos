@@ -10,13 +10,14 @@
 - 单次静态基线审计 29/29；Mock unsigned HAP 构建成功并确认双 ABI native entries。
 - Web/Android/Desktop 三份上游源码已在 `99_Temp\tabssh_reference` 建立浅克隆参考。
 - Mock fallback 新契约已完成 x86_64 模拟器覆盖安装和冷启动验证；证据见 `BUILD_TEST.md`。
-- `.github/workflows/online-build.yml` 已收敛为纯 GitHub `ubuntu-latest` 的最小线上 HAP 格式构建入口：手动触发后下载用户提供的 SDK 包，自动探测 `hvigorw.js` 与 `openharmony`，执行 Linux Hvigor 构建，校验 HAP zip 格式和双 ABI `libentry.so`，并上传 `opentabssh-linux-unsigned-hap-format-test`。静态审计、Real HAP、push/PR 自动触发后续验证通过后再逐步加回。
+- `.github/workflows/online-build.yml` 已收敛为纯 GitHub `ubuntu-latest` 的最小线上 HAP 格式构建入口，并已参考 `rustdesk_harmonyos` 的 Linux 成功结构重写：基础 SDK 初始化、full SDK 安装、full hvigor 替换、SDK 环境变量设置、Hvigor 构建、HAP zip 格式校验、双 ABI `libentry.so` 检查和 artifact 上传。该 workflow 当前只验证 Mock unsigned HAP 格式，静态审计、Real HAP、push/PR 自动触发后续验证通过后再逐步加回。
 - `scripts/run_local_checks.ps1` 已作为本地拉取后一键检查入口：默认串联 `git diff --check`、全局静态审计、连接分组专项审计、终端解析器测试、Mock 构建和验包；可选 `-WithRealCore` 与 `-BuildDependencies` 执行真实 HAP 与三方依赖路径。
 - `scripts/install_and_smoke.ps1` 已作为安装/冷启动冒烟入口：安装 `99_Temp` 中的 HAP、启动 `com.open.tabssh`、采集 bundle/PID/hilog/faultlogger 线索，并输出无凭据摘要；该脚本只做安装启动检查，不标记 SSH 功能完成。
 - `scripts/audit_project.ps1` 已增加连接分组基础审计项；`scripts/audit_connection_groups.ps1` 已增加专项审计，并接入一键检查，覆盖分组页面、路由、仓库接口、改名、换色、排序、折叠和文档同步。
 
 ## 已编码、待真实构建与端到端验证
 
+- 线上 Linux HAP workflow 尚未取得本仓库成功 run 证据；下一步必须先跑 `TabSSH Linux HAP format build`，确认 artifact、SHA256 和 HAP 文件列表，再决定是否加回审计或 Real HAP。
 - 固定 libssh2 `1.11.1`、OpenSSL `3.5.7 LTS`、zlib `1.3.2` 的双架构依赖已构建并生成 SHA/commit manifest；真实 HAP 已通过双 ABI marker/machine 验证和 x86_64 加载冷启动。
 - 真实 Core 的非阻塞握手、HostKey SHA256 阻断/确认、密码/私钥认证、PTY shell、读写/resize、SFTP 列目录和断开清理源码。
 - CMake 根据 stage 中经过清单校验的静态库自动切换真实 Core；源码 checkout 继续明确回退 Mock。
