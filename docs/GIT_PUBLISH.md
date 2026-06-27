@@ -8,15 +8,16 @@ DevEco 的签名 profile、证书、keystore、私钥和口令是本机私有材
 
 ## 线上构建
 
-`.github/workflows/online-build.yml` 当前已经收敛为最小 HAP 格式构建入口：
+`.github/workflows/online-build.yml` 当前已经收敛为纯 GitHub Linux runner 的最小 HAP 格式构建入口：
 
 - 仅支持 `workflow_dispatch` 手动触发。
+- 运行环境为 `ubuntu-latest`。
 - 不再自动响应 push 或 PR。
 - 不跑静态审计、不跑分组专项审计、不构建 Real HAP。
-- 只在 `self-hosted / Windows / X64 / tabssh-deveco` runner 上执行 Mock unsigned HAP 构建。
-- 构建后执行 `verify_mock_hap.ps1` 验证 HAP 包格式和双 ABI native entries。
-- 上传 artifact：`opentabssh-unsigned-hap-format-test`。
+- SDK 包由 workflow input `sdk_url` 或仓库 Secret `HARMONYOS_SDK_URL` 提供。
+- 可选 Secret `HARMONYOS_SDK_TOKEN` 用于私有 SDK 包下载。
+- workflow 自动解压 SDK 包并探测 `tools/hvigor/bin/hvigorw.js` 与 `openharmony` 目录。
+- 构建后用 `unzip -t` 验证 HAP zip 格式，并检查 arm64-v8a 与 x86_64 的 `libentry.so`。
+- 上传 artifact：`opentabssh-linux-unsigned-hap-format-test`。
 
-GitHub 托管 runner 没有 DevEco/HarmonyOS SDK，不能直接构建 HAP；必须配置自托管 Windows DevEco runner。线上 HAP 仍是 unsigned，不能当成正式发布包。
-
-先确认最小 HAP 格式构建通过，再逐步加回静态审计、Real HAP、安装冒烟和 push/PR 自动检查。线上 Release 不能只看 workflow 绿色或版本号。必须下载资产到 `99_Temp\release_inspect\10_Tabssh_harmonyos`，复核 SHA256、签名、双 ABI、BuildInfo/依赖来源并安装双设备，再把 run、commit、asset 和哈希写回文档。
+线上 HAP 仍是 unsigned，不能当成正式发布包。先确认最小 Linux HAP 格式构建通过，再逐步加回静态审计、Real HAP、安装冒烟和 push/PR 自动检查。线上 Release 不能只看 workflow 绿色或版本号。必须下载资产到 `99_Temp\release_inspect\10_Tabssh_harmonyos`，复核 SHA256、签名、双 ABI、BuildInfo/依赖来源并安装双设备，再把 run、commit、asset 和哈希写回文档。
