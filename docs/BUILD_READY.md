@@ -1,10 +1,10 @@
 # 当前构建测试就绪说明
 
-> 更新时间：2026-06-26。本文记录当前 `main` 是否已经可以进入本地构建测试，以及构建后应该优先验证什么。
+> 更新时间：2026-06-26。本文记录当前 `main` 是否已经可以进入本地/线上构建测试，以及构建后应该优先验证什么。
 
 ## 当前判断
 
-当前仓库已经可以进入本地构建测试，同时也可以继续做下一轮功能完善。
+当前仓库已经可以进入本地或线上构建测试。
 
 原因：
 
@@ -13,9 +13,10 @@
 - 首页连接筛选 UI、连接分组页、内存仓库分组接口和相关文档已经同步。
 - `scripts/audit_project.ps1` 已增加连接分组基础静态检查，会检查分组页、路由、仓库接口、首页筛选 UI 和文档记录。
 - `scripts/audit_connection_groups.ps1` 已加入专项检查，并已接入 `scripts/run_local_checks.ps1`。
+- `.github/workflows/online-build.yml` 已支持线上静态审计、Mock HAP 手动构建和 Real HAP 手动构建。
 - 没有新增签名材料、凭据、构建产物或原始日志。
 
-## 推荐先跑
+## 本地推荐先跑
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
@@ -29,13 +30,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -SkipMockBuild
 ```
 
+## 线上构建入口
+
+GitHub Actions 文件：`.github/workflows/online-build.yml`。
+
+自动触发：
+
+- push 到 `main`：运行静态审计。
+- pull_request：运行静态审计。
+
+手动触发：
+
+- `build_mock_hap=true`：在 `self-hosted / Windows / X64 / tabssh-deveco` runner 上构建 Mock fallback HAP，产物名 `opentabssh-mock-unsigned-hap`。
+- `build_real_hap=true`：在同一 DevEco runner 上构建固定依赖与真实 SSH HAP，产物名 `opentabssh-real-unsigned-hap`。
+
+注意：GitHub 托管 runner 没有 DevEco/HarmonyOS SDK，HAP 构建必须使用带 `tabssh-deveco` 标签的自托管 Windows runner。线上产物仍是 unsigned HAP，不等于发布签名包。
+
 ## 静态审计新增覆盖
 
 本轮后 `scripts/audit_project.ps1` 额外检查：
 
 - `connection-filter-ui`：首页搜索、收藏筛选、排序入口仍存在。
 - `connection-group-repository`：内存仓库包含 `listGroups`、`saveGroup`、`removeGroup`。
-- `connection-group-page`：`ConnectionGroupPage.ets` 存在，并包含新增分组和空分组移除逻辑。
+- `connection-group-page`：`ConnectionGroupPage.ets` 存在，并包含新增分组和空分组处理逻辑。
 - `connection-group-route`：`main_pages.json` 已注册 `pages/ConnectionGroupPage`。
 - `connection-group-docs`：分组页和构建就绪说明已写入文档。
 
@@ -43,6 +60,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 
 - 路由、分组仓库接口和页面文件。
 - 新建、改名、换色、上移/下移、折叠和空分组保护。
+- 编辑页所属分组芯片选择。
 - 分组页的内存/RDB 提示和文档同步。
 
 ## 构建后必须验证
@@ -55,6 +73,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 - 收藏 / 取消收藏。
 - 连接次数和上次失败提示。
 
+### 连接编辑页分组选择
+
+- 新建连接页展示“所属分组”。
+- 分组芯片可点击切换。
+- 保存 profile 后 `groupId` 随选择变化。
+- 编辑已有连接时能回显所属分组。
+
 ### 连接分组页
 
 - `pages/ConnectionGroupPage` 能通过路由编译进 HAP。
@@ -66,7 +91,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 - 上移 / 下移可以改变内存排序。
 - 折叠 / 展开状态可切换。
 - 默认分组不能移除。
-- 空分组可移除，非空分组暂不移除。
+- 空分组可处理，非空分组暂不迁移。
 
 注意：当前首页入口尚未接入，分组页路由已注册但还需要后续把入口接入 `Index.ets`。
 
@@ -87,6 +112,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
 - SFTP 大文件、取消和中断恢复。
 - 完整 xterm 兼容。
 - HUKS / ASSET 凭据安全存储。
+- Signed HAP 发布包。
 
 ## 测试结果回填
 
