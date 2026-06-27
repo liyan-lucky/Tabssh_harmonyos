@@ -14,9 +14,9 @@ DevEco 的签名 profile、证书、keystore、私钥和口令是本机私有材
 - 运行环境为 `ubuntu-latest`。
 - 不再自动响应 push 或 PR。
 - 不跑静态审计、不跑分组专项审计、不构建 Real HAP。
-- SDK 包由 workflow input `sdk_url` 或仓库 Secret `HARMONYOS_SDK_URL` 提供。
-- 可选 Secret `HARMONYOS_SDK_TOKEN` 用于私有 SDK 包下载。
-- workflow 自动解压 SDK 包并探测 `tools/hvigor/bin/hvigorw.js` 与 `openharmony` 目录。
+- SDK 包由仓库 Secrets `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL` 提供。
+- 可选 workflow input `sdk_sha256` 和 `full_sha256` 用于分别校验两个包。
+- workflow 分别解压两个完整 SDK 包，并在合并后的临时目录里探测 `tools/hvigor/bin/hvigorw.js` 与 `openharmony` 目录。
 - 构建后用 `unzip -t` 验证 HAP zip 格式，并检查 arm64-v8a 与 x86_64 的 `libentry.so`。
 - 上传 artifact：`opentabssh-linux-unsigned-hap-format-test`。
 
