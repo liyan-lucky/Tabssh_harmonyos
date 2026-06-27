@@ -213,6 +213,7 @@ jobs:
           set -euo pipefail
           SDK_BASE="/home/runner/harmonyos-sdk"
           NODE_ROOT="$(dirname "$(dirname "$(command -v node)")")"
+          PATCH_REQUIRE="$GITHUB_WORKSPACE/scripts/run_hvigor_with_sdk_patch.js"
 
           echo "Listing HarmonyOS SDK"
           find "$SDK_BASE" -maxdepth 6 -type d | sort || true
@@ -225,6 +226,7 @@ jobs:
           echo "HARMONYOS_SDK_DIR=$SDK_BASE/openharmony" >> "$GITHUB_ENV"
           echo "HARMONYOS_NODE_DIR=$NODE_ROOT" >> "$GITHUB_ENV"
           echo "DEVECO_NODE_EXE=$(command -v node)" >> "$GITHUB_ENV"
+          echo "NODE_OPTIONS=--require=$PATCH_REQUIRE ${NODE_OPTIONS:-}" >> "$GITHUB_ENV"
           echo "PATH=$SDK_BASE/command-line-tools/bin:$SDK_BASE/command-line-tools/ohpm/bin:$SDK_BASE/command-line-tools/hvigor/bin:$PATH" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$SDK_BASE/hms/toolchains/lib:$SDK_BASE/openharmony/previewer/common/bin:$SDK_BASE/openharmony/ets/build-tools/ets-loader/bin/ark/build/bin:$SDK_BASE/openharmony/toolchains:$SDK_BASE/openharmony/toolchains/lib:$SDK_BASE/hms/native/sysroot/usr/lib/x86_64-linux-ohos:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
 
@@ -240,6 +242,7 @@ jobs:
           echo "BUILD_PLATFORM=$BUILD_PLATFORM"
           echo "BUILD_RUNTIME_OS=$BUILD_RUNTIME_OS"
           echo "BUILD_ABI=$BUILD_ABI"
+          echo "NODE_OPTIONS=--require=$PATCH_REQUIRE ${NODE_OPTIONS:-}"
           node -v
 
       - name: Prepare 4-package matrix profile
@@ -275,6 +278,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export NODE_OPTIONS="--require=$GITHUB_WORKSPACE/scripts/run_hvigor_with_sdk_patch.js ${NODE_OPTIONS:-}"
           node scripts/run_hvigor_with_sdk_patch.js assembleHap
 
       - name: Collect and verify HAP format
