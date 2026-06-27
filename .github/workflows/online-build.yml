@@ -36,11 +36,11 @@ jobs:
             abi: x86_64
           - platform: openharmony
             platform_name: OpenHarmony
-            runtime_os: OpenHarmony
+            runtime_os: ""
             abi: arm64-v8a
           - platform: openharmony
             platform_name: OpenHarmony
-            runtime_os: OpenHarmony
+            runtime_os: ""
             abi: x86_64
     env:
       CI: "true"
@@ -238,7 +238,7 @@ jobs:
           echo "TABSSH_HWSDK_ROOT=$SDK_BASE"
           echo "HARMONYOS_SDK_DIR=$SDK_BASE/openharmony"
           echo "BUILD_PLATFORM=$BUILD_PLATFORM"
-          echo "BUILD_RUNTIME_OS=$BUILD_RUNTIME_OS"
+          echo "BUILD_RUNTIME_OS=${BUILD_RUNTIME_OS:-none}"
           echo "BUILD_ABI=$BUILD_ABI"
           node -v
 
@@ -251,12 +251,16 @@ jobs:
           import os
           from pathlib import Path
 
-          runtime_os = os.environ['BUILD_RUNTIME_OS']
+          runtime_os = os.environ.get('BUILD_RUNTIME_OS', '')
           abi = os.environ['BUILD_ABI']
 
           root_profile = Path('build-profile.json5')
           root_data = json.loads(root_profile.read_text(encoding='utf-8'))
-          root_data['app']['products'][0]['runtimeOS'] = runtime_os
+          product = root_data['app']['products'][0]
+          if runtime_os:
+              product['runtimeOS'] = runtime_os
+          else:
+              product.pop('runtimeOS', None)
           root_profile.write_text(json.dumps(root_data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
           entry_profile = Path('entry/build-profile.json5')
@@ -308,7 +312,7 @@ jobs:
           fi
           {
             echo "platform=$BUILD_PLATFORM_NAME"
-            echo "runtimeOS=$BUILD_RUNTIME_OS"
+            echo "runtimeOS=${BUILD_RUNTIME_OS:-none}"
             echo "abi=$BUILD_ABI"
             echo "hap=$HAP_NAME"
             sha256sum "$OUT_DIR/$HAP_NAME"
