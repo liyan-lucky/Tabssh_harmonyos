@@ -1,29 +1,144 @@
-name: TabSSH HAP format build
+name: TabSSH Linux HAP format build
 
 on:
   workflow_dispatch:
+    inputs:
+      sdk_url:
+        description: Optional SDK archive URL. If empty, use secret HARMONYOS_SDK_URL.
+        required: false
+        default: ""
+        type: string
+      sdk_sha256:
+        description: Optional SHA256 for the SDK archive. If empty, skip hash check.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   hap-format:
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build unsigned HAP
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_mock_hap.ps1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Verify HAP package format
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1 -HapPath "$((Resolve-Path ..).Path)\99_Temp\harmonyos_build\10_Tabssh_harmonyos\entry-default-unsigned.hap"
+      - name: Download and unpack HarmonyOS SDK package
+        shell: bash
+        env:
+          INPUT_SDK_URL: ${{ inputs.sdk_url }}
+          INPUT_SDK_SHA256: ${{ inputs.sdk_sha256 }}
+          SECRET_SDK_URL: ${{ secrets.HARMONYOS_SDK_URL }}
+          SDK_DOWNLOAD_TOKEN: ${{ secrets.HARMONYOS_SDK_TOKEN }}
+        run: |
+          set -euo pipefail
+          SDK_URL="$INPUT_SDK_URL"
+          if [ -z "$SDK_URL" ]; then
+            SDK_URL="$SECRET_SDK_URL"
+          fi
+          if [ -z "$SDK_URL" ]; then
+            echo "SDK URL is required. Provide workflow input sdk_url or repository secret HARMONYOS_SDK_URL." >&2
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/harmony-sdk" "$RUNNER_TEMP/harmony-sdk-extract"
+          SDK_ARCHIVE="$RUNNER_TEMP/harmony-sdk/sdk-package"
+          if [ -n "$SDK_DOWNLOAD_TOKEN" ]; then
+            curl -fL --retry 3 --retry-delay 5 -H "Authorization: Bearer $SDK_DOWNLOAD_TOKEN" "$SDK_URL" -o "$SDK_ARCHIVE"
+          else
+            curl -fL --retry 3 --retry-delay 5 "$SDK_URL" -o "$SDK_ARCHIVE"
+          fi
+
+          if [ -n "$INPUT_SDK_SHA256" ]; then
+            echo "$INPUT_SDK_SHA256  $SDK_ARCHIVE" | sha256sum -c -
+          fi
+
+          if file "$SDK_ARCHIVE" | grep -qi 'Zip archive'; then
+            unzip -q "$SDK_ARCHIVE" -d "$RUNNER_TEMP/harmony-sdk-extract"
+          elif file "$SDK_ARCHIVE" | grep -Eqi 'gzip|XZ compressed|bzip2|tar archive'; then
+            tar -xf "$SDK_ARCHIVE" -C "$RUNNER_TEMP/harmony-sdk-extract"
+          else
+            echo "Unsupported SDK archive format:" >&2
+            file "$SDK_ARCHIVE" >&2
+            exit 1
+          fi
+
+          HVIGOR_ENTRY="$(find "$RUNNER_TEMP/harmony-sdk-extract" -type f -path '*/hvigor/bin/hvigorw.js' -print -quit)"
+          OPENHARMONY_DIR="$(find "$RUNNER_TEMP/harmony-sdk-extract" -type d -path '*/openharmony' -print -quit)"
+          if [ -z "$HVIGOR_ENTRY" ]; then
+            echo "Cannot find tools/hvigor/bin/hvigorw.js in SDK package." >&2
+            find "$RUNNER_TEMP/harmony-sdk-extract" -maxdepth 5 -type d | sort | head -200 >&2
+            exit 1
+          fi
+          if [ -z "$OPENHARMONY_DIR" ]; then
+            echo "Cannot find openharmony SDK directory in SDK package." >&2
+            find "$RUNNER_TEMP/harmony-sdk-extract" -maxdepth 5 -type d | sort | head -200 >&2
+            exit 1
+          fi
+
+          TOOLS_ROOT="${HVIGOR_ENTRY%/hvigor/bin/hvigorw.js}"
+          HWSDK_ROOT="$(dirname "$OPENHARMONY_DIR")"
+          NODE_ROOT="$(dirname "$(dirname "$(command -v node)")")"
+
+          echo "DEVECO_TOOLS_ROOT=$TOOLS_ROOT" >> "$GITHUB_ENV"
+          echo "TABSSH_HWSDK_ROOT=$HWSDK_ROOT" >> "$GITHUB_ENV"
+          echo "HARMONYOS_SDK_DIR=$OPENHARMONY_DIR" >> "$GITHUB_ENV"
+          echo "HARMONYOS_NODE_DIR=$NODE_ROOT" >> "$GITHUB_ENV"
+
+          {
+            echo "sdk.dir=$OPENHARMONY_DIR"
+            echo "hwsdk.dir=$HWSDK_ROOT"
+            echo "npm.dir=$NODE_ROOT"
+          } > local.properties
+
+          echo "Detected DevEco tools: $TOOLS_ROOT"
+          echo "Detected HW SDK root: $HWSDK_ROOT"
+          echo "Detected OpenHarmony SDK: $OPENHARMONY_DIR"
+          echo "Detected Node root: $NODE_ROOT"
+
+      - name: Build unsigned HAP with Hvigor
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/run_hvigor_with_sdk_patch.js assembleHap
+
+      - name: Collect and verify HAP format
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/hap-out"
+          mapfile -t HAPS < <(find . -type f -path '*/outputs/*' -name '*.hap' | sort)
+          if [ "${#HAPS[@]}" -eq 0 ]; then
+            echo "Build finished but no .hap was found under outputs." >&2
+            find . -type d -name outputs -print >&2 || true
+            exit 1
+          fi
+          HAP="${HAPS[0]}"
+          cp "$HAP" "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap"
+          unzip -t "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap"
+          unzip -l "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap" | tee "$RUNNER_TEMP/hap-out/hap-list.txt"
+          if ! unzip -l "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap" | grep -q 'arm64-v8a.*libentry.so'; then
+            echo "Missing arm64-v8a libentry.so in HAP." >&2
+            exit 1
+          fi
+          if ! unzip -l "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap" | grep -q 'x86_64.*libentry.so'; then
+            echo "Missing x86_64 libentry.so in HAP." >&2
+            exit 1
+          fi
+          sha256sum "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap" | tee "$RUNNER_TEMP/hap-out/entry-default-unsigned.hap.sha256"
 
       - name: Upload unsigned HAP
         uses: actions/upload-artifact@v4
         with:
-          name: opentabssh-unsigned-hap-format-test
-          path: ${{ github.workspace }}/../99_Temp/harmonyos_build/10_Tabssh_harmonyos/entry-default-unsigned.hap
+          name: opentabssh-linux-unsigned-hap-format-test
+          path: |
+            ${{ runner.temp }}/hap-out/entry-default-unsigned.hap
+            ${{ runner.temp }}/hap-out/entry-default-unsigned.hap.sha256
+            ${{ runner.temp }}/hap-out/hap-list.txt
           if-no-files-found: error
