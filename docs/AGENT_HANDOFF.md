@@ -10,16 +10,21 @@
 
 当前首页连接页已保持现有浅蓝背景、白色圆角卡片、蓝色芯片和悬浮胶囊底栏风格，接入搜索、收藏筛选、排序芯片、收藏切换、连接次数和上次失败提示。该 UI 已编码但尚未取得最新 HAP 编译和设备渲染证据。
 
-`ConnectionGroupPage.ets` 已新增并注册到 `main_pages.json`，可承载分组列表、新建分组、折叠/展开、删除空分组和每组主机数。该页面沿用现有卡片风格，当前只接内存仓库，首页入口、RDB 持久化、重命名和设备点击证据仍待补。
+`ConnectionGroupPage.ets` 已新增并注册到 `main_pages.json`，可承载分组列表、新建分组、改名、换色、上移/下移、折叠/展开、空分组处理和每组主机数。该页面沿用现有卡片风格，当前只接内存仓库，首页入口、RDB 持久化、非空分组迁移和设备点击证据仍待补。
 
-`docs/BUILD_READY.md` 已记录当前 `main` 可以进入本地构建测试。`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 持久化、首页分组入口、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
+`.github/workflows/online-build.yml` 当前是纯 GitHub `ubuntu-latest` 的最小 HAP 格式构建入口，已参考 `rustdesk_harmonyos` 的 Linux 构建结构。流程是：初始化基础 HarmonyOS SDK，安装 full SDK，替换 full hvigor，设置 SDK 与工具链环境变量，然后执行 `node scripts/run_hvigor_with_sdk_patch.js assembleHap`。该 workflow 只验证 unsigned HAP 格式和双 ABI `libentry.so`，不跑静态审计、不构建 Real HAP、不响应 push/PR。
+
+`docs/BUILD_READY.md` 已记录当前 `main` 可以进入本地和线上最小 HAP 构建测试。`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 持久化、首页分组入口、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
 
 ## 当前必须补的新证据
 
+- GitHub Actions `TabSSH Linux HAP format build` 的运行结果。
+- 线上 artifact 中的 unsigned HAP、SHA256 和 HAP 文件列表。
+- 线上 Linux 构建日志中 full SDK 安装、full hvigor 替换、SDK 定位、Hvigor 构建四段关键结论。
 - 运行 `scripts/run_local_checks.ps1` 后生成的 `summary_*.md` 结论。
 - 运行 `scripts/install_and_smoke.ps1` 后生成的 `summary_*.md` 结论。
 - 最新首页连接筛选 UI 的 HAP 构建、安装、搜索/收藏/排序点击和页面渲染证据。
-- 最新连接分组页的 HAP 构建、路由跳转、分组新增、折叠/展开和删除空分组证据。
+- 最新连接分组页的 HAP 构建、路由跳转、分组新增、折叠/展开和空分组处理证据。
 - 最新 ProIcons 资源包的 HAP 构建、安装和页面渲染证据。
 - 最新终端 Span 渲染、复制、视口 resize、复杂 TUI 和性能证据。
 - 三类端口转发真实 HAP 的逐字节流量证据。
@@ -30,14 +35,18 @@
 
 1. 完整读取本文件，再按 `docs/README.md` 顺序阅读。
 2. 执行 `git status --short --branch` 和完整 diff，确认当前在 `main`。
-3. 执行 `scripts/run_local_checks.ps1`；如时间紧，先执行 `scripts/run_local_checks.ps1 -SkipMockBuild`。
-4. 默认检查通过后，执行 Mock HAP 构建/验包；具备三方依赖时再执行真实 Core HAP 构建/验包。
-5. 安装 HAP 后优先验证：首页连接筛选 UI、连接分组页路由编译、底部导航、Terminal/SFTP/PortForward/Settings/About 路由。
-6. 每次重要修改和最终发布前各运行一次完整审计、构建、安装与相关功能检查，并立即同步所有相关文档。
+3. 若目标是验证线上构建，先确认仓库已配置两个 HarmonyOS SDK 包地址变量。
+4. 运行 GitHub Actions：`TabSSH Linux HAP format build`。
+5. 若线上构建失败，优先看 full SDK 安装、full hvigor 替换、SDK 定位和 Hvigor 构建四段日志，不要先加回审计或 Real HAP。
+6. 本地仍按需执行 `scripts/run_local_checks.ps1`；如时间紧，先执行 `scripts/run_local_checks.ps1 -SkipMockBuild`。
+7. 默认检查通过后，执行 Mock HAP 构建/验包；具备三方依赖时再执行真实 Core HAP 构建/验包。
+8. 安装 HAP 后优先验证：首页连接筛选 UI、连接分组页路由编译、底部导航、Terminal/SFTP/PortForward/Settings/About 路由。
+9. 每次重要修改和最终发布前各运行一次完整审计、构建、安装与相关功能检查，并立即同步所有相关文档。
 
 ## 安全与清理规则
 
 - 密码、私钥、私钥口令、token 和服务器凭据只允许存在测试运行内存，禁止写入源码、日志、文档、截图、备份说明或提交说明。
+- HarmonyOS SDK 包地址只记录变量名，禁止把真实链接写入文档、日志摘要或提交说明。
 - `%VSCODE_ROOT%\99_Temp` 是多项目共享目录，只能使用 `docs/WORKSPACE_PATHS.md` 列明且明确归属本项目的可再生目录。
 - 不在仓库根保留 `.hvigor`、`.cxx`、build、崩溃转储、IDE/AI 工具缓存或散落日志。
 - 应用图标只能使用 `docs/PROICONS_ICONS.md` 登记的 ProIcons 资产，禁止新增自绘 SVG、Emoji 或字符图标。
