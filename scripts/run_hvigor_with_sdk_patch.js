@@ -133,18 +133,22 @@ function walkFiles(rootDir, output) {
   }
 }
 
+let hapMirrorDone = false;
 function mirrorHapOutputs() {
+  if (hapMirrorDone) return;
+  hapMirrorDone = true;
   const candidates = [];
   walkFiles(projectRoot, candidates);
   const runnerTemp = process.env.RUNNER_TEMP || '';
   if (runnerTemp) walkFiles(runnerTemp, candidates);
   const unique = Array.from(new Set(candidates)).sort();
-  if (unique.length === 0) {
-    console.warn('[TabSSH] No HAP output found to mirror.');
-    return;
-  }
   const mirrorDir = path.resolve(projectRoot, 'entry/build/outputs/tabssh-mirror');
   fs.mkdirSync(mirrorDir, { recursive: true });
+  if (unique.length === 0) {
+    console.warn('[TabSSH] No HAP output found to mirror.');
+    fs.writeFileSync(path.join(mirrorDir, 'NO_HAP_FOUND.txt'), 'No HAP output found after Hvigor build.\n');
+    return;
+  }
   unique.forEach((source, index) => {
     const target = path.join(mirrorDir, index === 0 ? 'entry-default-unsigned.hap' : `entry-default-unsigned-${index}.hap`);
     fs.copyFileSync(source, target);
@@ -153,6 +157,9 @@ function mirrorHapOutputs() {
 }
 
 if (require.main === module) {
+  process.once('beforeExit', mirrorHapOutputs);
+  process.once('exit', mirrorHapOutputs);
+
   const tasks = process.argv.slice(2);
   const productName = resolveProductName();
   const moduleTarget = productName === 'default' ? 'entry@default' : `entry@${productName}`;
@@ -168,9 +175,5 @@ if (require.main === module) {
     ...(tasks.length > 0 ? tasks : ['assembleHap'])
   ];
   console.log(`TabSSH Hvigor product=${productName} module=${moduleTarget}`);
-  try {
-    hvigorRequire(hvigorEntry);
-  } finally {
-    mirrorHapOutputs();
-  }
+  hvigorRequire(hvigorEntry);
 }
