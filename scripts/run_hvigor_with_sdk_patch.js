@@ -112,18 +112,27 @@ if (!process.env.NODE_OPTIONS || !process.env.NODE_OPTIONS.includes(__filename))
     : selfRequireFlag;
 }
 
+function resolveProductName() {
+  const explicitProduct = String(process.env.BUILD_PRODUCT || '').trim();
+  if (explicitProduct.length > 0) return explicitProduct;
+  return process.env.BUILD_PLATFORM === 'openharmony' ? 'openharmony_verify' : 'default';
+}
+
 if (require.main === module) {
   const tasks = process.argv.slice(2);
+  const productName = resolveProductName();
+  const moduleTarget = productName === 'default' ? 'entry@default' : `entry@${productName}`;
   process.argv = [
     process.argv[0],
     hvigorEntry,
     '--no-daemon',
     '--mode', 'module',
-    '-p', 'product=default',
-    '-p', 'module=entry@default',
+    '-p', `product=${productName}`,
+    '-p', `module=${moduleTarget}`,
     '-p', 'pageType=page',
     '-p', 'compileResInc=true',
     ...(tasks.length > 0 ? tasks : ['assembleHap'])
   ];
+  console.log(`TabSSH Hvigor product=${productName} module=${moduleTarget}`);
   hvigorRequire(hvigorEntry);
 }
