@@ -4,102 +4,80 @@
 
 ## 当前判断
 
-当前仓库已经可以进入本地或线上构建测试。
+当前线上构建已经收敛为最小 HAP 格式验证。
 
 原因：
 
-- 所有本轮新增页面已经写入源码树。
-- `pages/ConnectionGroupPage` 已注册到 `entry/src/main/resources/base/profile/main_pages.json`。
-- 首页连接筛选 UI、连接分组页、内存仓库分组接口和相关文档已经同步。
-- `scripts/audit_project.ps1` 已增加连接分组基础静态检查，会检查分组页、路由、仓库接口、首页筛选 UI 和文档记录。
-- `scripts/audit_connection_groups.ps1` 已加入专项检查，并已接入 `scripts/run_local_checks.ps1`。
-- `.github/workflows/online-build.yml` 已支持线上静态审计、Mock HAP 手动构建和 Real HAP 手动构建。
+- `.github/workflows/online-build.yml` 现在只保留手动触发。
+- 线上只执行 Mock unsigned HAP 构建、HAP 包格式/双 ABI 验证和 artifact 上传。
+- 线上静态审计、连接分组专项审计、Real HAP 构建、push/PR 自动触发已暂时移除。
+- 这样可以先验证 DevEco runner、Hvigor、HAP 输出路径和 artifact 上传是否正确。
 - 没有新增签名材料、凭据、构建产物或原始日志。
-
-## 本地推荐先跑
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1
-```
-
-该命令用于先做全局静态审计、连接分组专项审计、终端解析器测试、Mock HAP 构建和验包。
-
-如果只想快速检查源码和终端解析器，可先跑：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -SkipMockBuild
-```
 
 ## 线上构建入口
 
 GitHub Actions 文件：`.github/workflows/online-build.yml`。
 
-自动触发：
+触发方式：
 
-- push 到 `main`：运行静态审计。
-- pull_request：运行静态审计。
+1. GitHub → Actions → `TabSSH HAP format build`。
+2. 点击 `Run workflow`。
+3. 选择 `main`。
+4. 运行后下载 artifact：`opentabssh-unsigned-hap-format-test`。
 
-手动触发：
+当前 workflow 只做三步：
 
-- `build_mock_hap=true`：在 `self-hosted / Windows / X64 / tabssh-deveco` runner 上构建 Mock fallback HAP，产物名 `opentabssh-mock-unsigned-hap`。
-- `build_real_hap=true`：在同一 DevEco runner 上构建固定依赖与真实 SSH HAP，产物名 `opentabssh-real-unsigned-hap`。
+- `scripts\build_mock_hap.ps1`
+- `scripts\verify_mock_hap.ps1`
+- 上传 `entry-default-unsigned.hap`
 
 注意：GitHub 托管 runner 没有 DevEco/HarmonyOS SDK，HAP 构建必须使用带 `tabssh-deveco` 标签的自托管 Windows runner。线上产物仍是 unsigned HAP，不等于发布签名包。
 
-## 静态审计新增覆盖
+## 本地推荐先跑
 
-本轮后 `scripts/audit_project.ps1` 额外检查：
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -SkipMockBuild
+```
 
-- `connection-filter-ui`：首页搜索、收藏筛选、排序入口仍存在。
-- `connection-group-repository`：内存仓库包含 `listGroups`、`saveGroup`、`removeGroup`。
-- `connection-group-page`：`ConnectionGroupPage.ets` 存在，并包含新增分组和空分组处理逻辑。
-- `connection-group-route`：`main_pages.json` 已注册 `pages/ConnectionGroupPage`。
-- `connection-group-docs`：分组页和构建就绪说明已写入文档。
+如果只想对齐线上最小 HAP 格式构建，再跑：
 
-`scripts/audit_connection_groups.ps1` 额外检查：
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_mock_hap.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
+```
 
-- 路由、分组仓库接口和页面文件。
-- 新建、改名、换色、上移/下移、折叠和空分组保护。
-- 编辑页所属分组芯片选择。
-- 分组页的内存/RDB 提示和文档同步。
+## 构建成功后再逐步加回
+
+必须先确认线上最小 HAP 格式构建通过，再按顺序恢复：
+
+1. PowerShell 语法检查。
+2. `audit_project.ps1`。
+3. `audit_connection_groups.ps1`。
+4. Mock HAP 安装冒烟。
+5. Real HAP 构建。
+6. 真实 SSH/SFTP/转发验证。
+7. push/PR 自动审计。
+
+不要一次性全部加回，否则失败时难以判断是 DevEco runner、Hvigor、ArkTS、Native、审计脚本还是 artifact 路径问题。
 
 ## 构建后必须验证
 
-### 首页连接管理
+### HAP 格式
 
-- 搜索名称、主机、用户或备注。
-- 全部 / 只看收藏筛选。
-- 默认、名称、主机、最近、次数、收藏排序芯片。
-- 收藏 / 取消收藏。
-- 连接次数和上次失败提示。
-
-### 连接编辑页分组选择
-
-- 新建连接页展示“所属分组”。
-- 分组芯片可点击切换。
-- 保存 profile 后 `groupId` 随选择变化。
-- 编辑已有连接时能回显所属分组。
-
-### 连接分组页
-
-- `pages/ConnectionGroupPage` 能通过路由编译进 HAP。
-- 页面保持浅蓝背景、白色圆角卡片和轻阴影风格。
-- 默认分组显示主机数量。
-- 新建分组后列表刷新，并能直接改名。
-- 名称点击进入编辑，保存/取消行为正确。
-- 点击色块可以切换分组颜色。
-- 上移 / 下移可以改变内存排序。
-- 折叠 / 展开状态可切换。
-- 默认分组不能移除。
-- 空分组可处理，非空分组暂不迁移。
-
-注意：当前首页入口尚未接入，分组页路由已注册但还需要后续把入口接入 `Index.ets`。
+- Workflow 成功结束。
+- artifact 名称为 `opentabssh-unsigned-hap-format-test`。
+- artifact 内存在 `entry-default-unsigned.hap`。
+- `verify_mock_hap.ps1` 确认 HAP 内含 arm64-v8a 与 x86_64 native entries。
 
 ### 基础页面回归
 
+构建通过后再安装到模拟器/真机，确认：
+
+- 首页能启动。
 - 首页四个底部标签仍可切换。
 - 连接编辑页仍可打开。
 - TerminalPage、SftpPage、PortForwardPage、SettingsPage、TerminalSettingsPage、AboutPage 路由仍可打开。
+- ConnectionGroupPage 路由能被 HAP 编译进包。
 
 ## 当前不能判定完成
 
@@ -121,6 +99,5 @@ GitHub Actions 文件：`.github/workflows/online-build.yml`。
 - `docs/BUILD_TEST.md`：写 HAP 哈希、设备、通过项和失败项。
 - `docs/PROGRESS.md`：把通过项或阻塞项同步到状态。
 - `docs/ISSUES.md`：记录构建失败、页面编译失败或设备点击失败。
-- `reports/project_audit_latest.md` 与 `reports/connection_group_audit_latest.md`：回填最新静态审计摘要。
 
 不要提交原始 hilog、设备隐私路径、服务器地址、用户名、密码、私钥或 token。
