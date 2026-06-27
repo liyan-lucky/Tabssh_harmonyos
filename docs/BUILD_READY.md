@@ -4,14 +4,16 @@
 
 ## 当前判断
 
-当前线上构建已经改为纯 GitHub 托管 Linux runner 的最小 HAP 格式验证。
+当前线上构建已经改为纯 GitHub 托管 Linux runner 的最小 HAP 格式验证，并已对齐 `rustdesk_harmonyos` 的 Linux 构建结构。
 
 原因：
 
 - `.github/workflows/online-build.yml` 现在只保留手动触发。
 - 线上运行环境是 `ubuntu-latest`，不再依赖自托管 Windows runner。
-- SDK 由 repository secrets `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL` 提供。
-- workflow 会分别下载并解压两个完整 SDK 包，再在合并后的临时目录里自动探测 `tools/hvigor/bin/hvigorw.js` 和 `openharmony` SDK 目录。
+- workflow 使用 `harmonyos-dev/setup-harmonyos-sdk@0.2.1` 初始化 `/home/runner/harmonyos-sdk`。
+- `HARMONYOS_SDK_URL` 用于安装 full HarmonyOS SDK 到 `/home/runner/harmonyos-sdk`。
+- `HARMONYOS_FULL_URL` 用于替换 `/home/runner/harmonyos-sdk/command-line-tools/hvigor`。
+- workflow 会设置 `DEVECO_TOOLS_ROOT`、`TABSSH_HWSDK_ROOT`、`HARMONYOS_SDK_DIR`、`HARMONYOS_NODE_DIR`、`PATH` 和 `LD_LIBRARY_PATH`。
 - workflow 只执行 Mock unsigned HAP 构建、HAP zip 格式检查、双 ABI `libentry.so` 检查和 artifact 上传。
 - 线上静态审计、连接分组专项审计、Real HAP 构建、push/PR 自动触发已暂时移除。
 - 没有新增签名材料、凭据、构建产物或原始日志。
@@ -25,19 +27,22 @@ GitHub Actions 文件：`.github/workflows/online-build.yml`。
 1. GitHub → Actions → `TabSSH Linux HAP format build`。
 2. 点击 `Run workflow`。
 3. 选择 `main`。
-4. 提前在仓库 Secrets 设置 `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL`。
+4. 提前在仓库 Secrets 或 Variables 设置 `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL`。
 5. 可选填写 `sdk_sha256` 和 `full_sha256`，用于分别校验两个 SDK 包。
 6. 运行后下载 artifact：`opentabssh-linux-unsigned-hap-format-test`。
 
 当前 workflow 主要步骤：
 
 - `actions/checkout@v4`
+- `actions/setup-java@v4`，Zulu Java 17。
 - `actions/setup-node@v4`，Node 20。
-- 下载 `HARMONYOS_SDK_URL` 指向的包。
-- 下载 `HARMONYOS_FULL_URL` 指向的包。
-- 解压 zip / tar 类 SDK 包。
-- 自动定位 DevEco `tools` 与 OpenHarmony SDK。
-- 写入 `local.properties`。
+- 安装 unzip / zip / curl / jq / python3 / rsync。
+- `harmonyos-dev/setup-harmonyos-sdk@0.2.1` 初始化基础 SDK。
+- 下载 `HARMONYOS_SDK_URL` 指向的 full SDK 包。
+- 把 `openharmony`、`hms`、`sdk-pkg.json` 规范化移动到 `/home/runner/harmonyos-sdk`。
+- 下载 `HARMONYOS_FULL_URL` 指向的 full hvigor 包。
+- 替换 `/home/runner/harmonyos-sdk/command-line-tools/hvigor`。
+- 设置构建环境变量和 `local.properties`。
 - 执行 `node scripts/run_hvigor_with_sdk_patch.js assembleHap`。
 - 查找 `outputs` 下的 `.hap`。
 - 执行 `unzip -t` 校验 HAP zip 格式。
@@ -46,16 +51,22 @@ GitHub Actions 文件：`.github/workflows/online-build.yml`。
 
 ## SDK 包要求
 
-两个 SDK 包解压合并后必须能找到：
+`HARMONYOS_SDK_URL` 解压后应能定位到：
 
 ```text
-tools/hvigor/bin/hvigorw.js
-sdk/default/openharmony
+openharmony
+hms 或 HarmonyOS-6.1.1
+sdk-pkg.json
 ```
 
-目录可以更深，但必须包含等价的 `hvigor/bin/hvigorw.js` 和 `openharmony` 目录。workflow 会自动搜索，不要求固定根目录名。
+`HARMONYOS_FULL_URL` 解压后应能在 `command-line-tools` 下形成：
 
-仓库 Secrets：
+```text
+hvigor/bin/hvigorw.js
+hvigor/hvigor-ohos-plugin/node_modules/@ohos/hos-sdkmanager-common/build/src/hos/mapper/platform-sdks.js
+```
+
+仓库 Secrets 或 Variables：
 
 ```text
 HARMONYOS_SDK_URL
