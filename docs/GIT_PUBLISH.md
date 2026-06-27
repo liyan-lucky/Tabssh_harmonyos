@@ -8,12 +8,15 @@ DevEco 的签名 profile、证书、keystore、私钥和口令是本机私有材
 
 ## 线上构建
 
-`.github/workflows/online-build.yml` 是当前线上构建入口：
+`.github/workflows/online-build.yml` 当前已经收敛为最小 HAP 格式构建入口：
 
-- push 到 `main` 和 PR 默认只跑静态审计。
-- 手动触发 `build_mock_hap=true` 时，在 `self-hosted / Windows / X64 / tabssh-deveco` runner 上构建 Mock unsigned HAP，并上传 `opentabssh-mock-unsigned-hap`。
-- 手动触发 `build_real_hap=true` 时，在同一 DevEco runner 上构建固定依赖和真实 SSH unsigned HAP，并上传 `opentabssh-real-unsigned-hap`。
+- 仅支持 `workflow_dispatch` 手动触发。
+- 不再自动响应 push 或 PR。
+- 不跑静态审计、不跑分组专项审计、不构建 Real HAP。
+- 只在 `self-hosted / Windows / X64 / tabssh-deveco` runner 上执行 Mock unsigned HAP 构建。
+- 构建后执行 `verify_mock_hap.ps1` 验证 HAP 包格式和双 ABI native entries。
+- 上传 artifact：`opentabssh-unsigned-hap-format-test`。
 
 GitHub 托管 runner 没有 DevEco/HarmonyOS SDK，不能直接构建 HAP；必须配置自托管 Windows DevEco runner。线上 HAP 仍是 unsigned，不能当成正式发布包。
 
-线上 Release 不能只看 workflow 绿色或版本号。必须下载资产到 `99_Temp\release_inspect\10_Tabssh_harmonyos`，复核 SHA256、签名、双 ABI、BuildInfo/依赖来源并安装双设备，再把 run、commit、asset 和哈希写回文档。
+先确认最小 HAP 格式构建通过，再逐步加回静态审计、Real HAP、安装冒烟和 push/PR 自动检查。线上 Release 不能只看 workflow 绿色或版本号。必须下载资产到 `99_Temp\release_inspect\10_Tabssh_harmonyos`，复核 SHA256、签名、双 ABI、BuildInfo/依赖来源并安装双设备，再把 run、commit、asset 和哈希写回文档。
