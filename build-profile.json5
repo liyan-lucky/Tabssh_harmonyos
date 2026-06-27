@@ -14,7 +14,7 @@
         "name": "openharmony_verify",
         "compileSdkVersion": "6.1.1(24)",
         "compatibleSdkVersion": "6.1.0(23)",
-        "runtimeOS": "OpenHarmony",
+        "runtimeOS": "HarmonyOS",
         "targetSdkVersion": "6.1.0(23)",
         "bundleName": "com.open.tabssh"
       }
