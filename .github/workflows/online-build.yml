@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      build_mock_hap:
+        description: Build the Mock fallback HAP on the protected DevEco runner
+        required: true
+        default: false
+        type: boolean
       build_real_hap:
         description: Build the real SSH HAP on the protected DevEco runner
         required: true
@@ -37,10 +42,33 @@ jobs:
       - name: Static project audit
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\audit_project.ps1 -ReportPath "$env:RUNNER_TEMP\tabssh_audit.md"
+      - name: Static connection group audit
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\audit_connection_groups.ps1 -ReportPath "$env:RUNNER_TEMP\connection_group_audit.md"
       - uses: actions/upload-artifact@v4
         with:
           name: tabssh-static-audit
-          path: ${{ runner.temp }}/tabssh_audit.md
+          path: |
+            ${{ runner.temp }}/tabssh_audit.md
+            ${{ runner.temp }}/connection_group_audit.md
+          if-no-files-found: error
+
+  mock-hap:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_mock_hap
+    runs-on: [self-hosted, Windows, X64, tabssh-deveco]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Mock fallback HAP outside the checkout
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_mock_hap.ps1
+      - name: Verify Mock HAP native entries
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1 -HapPath "$((Resolve-Path ..).Path)\99_Temp\harmonyos_build\10_Tabssh_harmonyos\entry-default-unsigned.hap"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opentabssh-mock-unsigned-hap
+          path: ${{ github.workspace }}/../99_Temp/harmonyos_build/10_Tabssh_harmonyos/entry-default-unsigned.hap
           if-no-files-found: error
 
   real-hap:
