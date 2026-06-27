@@ -8,15 +8,17 @@ DevEco 的签名 profile、证书、keystore、私钥和口令是本机私有材
 
 ## 线上构建
 
-`.github/workflows/online-build.yml` 当前已经收敛为纯 GitHub Linux runner 的最小 HAP 格式构建入口：
+`.github/workflows/online-build.yml` 当前已经收敛为纯 GitHub Linux runner 的最小 HAP 格式构建入口，并参考 `rustdesk_harmonyos/.github/workflows/build-harmonyos-linux.yml` 的成功结构：
 
 - 仅支持 `workflow_dispatch` 手动触发。
 - 运行环境为 `ubuntu-latest`。
 - 不再自动响应 push 或 PR。
 - 不跑静态审计、不跑分组专项审计、不构建 Real HAP。
-- SDK 包由仓库 Secrets `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL` 提供。
+- 通过 `harmonyos-dev/setup-harmonyos-sdk@0.2.1` 初始化 `/home/runner/harmonyos-sdk`。
+- `HARMONYOS_SDK_URL` 用于安装 full HarmonyOS SDK。
+- `HARMONYOS_FULL_URL` 用于替换 `/home/runner/harmonyos-sdk/command-line-tools/hvigor`。
 - 可选 workflow input `sdk_sha256` 和 `full_sha256` 用于分别校验两个包。
-- workflow 分别解压两个完整 SDK 包，并在合并后的临时目录里探测 `tools/hvigor/bin/hvigorw.js` 与 `openharmony` 目录。
+- workflow 设置 `DEVECO_TOOLS_ROOT`、`TABSSH_HWSDK_ROOT`、`HARMONYOS_SDK_DIR`、`HARMONYOS_NODE_DIR`、`PATH` 和 `LD_LIBRARY_PATH` 后执行 Hvigor。
 - 构建后用 `unzip -t` 验证 HAP zip 格式，并检查 arm64-v8a 与 x86_64 的 `libentry.so`。
 - 上传 artifact：`opentabssh-linux-unsigned-hap-format-test`。
 
