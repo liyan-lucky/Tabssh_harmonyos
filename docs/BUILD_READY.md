@@ -4,14 +4,16 @@
 
 ## 当前判断
 
-当前线上构建已经收敛为最小 HAP 格式验证。
+当前线上构建已经改为纯 GitHub 托管 Linux runner 的最小 HAP 格式验证。
 
 原因：
 
 - `.github/workflows/online-build.yml` 现在只保留手动触发。
-- 线上只执行 Mock unsigned HAP 构建、HAP 包格式/双 ABI 验证和 artifact 上传。
+- 线上运行环境是 `ubuntu-latest`，不再依赖自托管 Windows runner。
+- SDK 由 workflow input `sdk_url` 或 repository secret `HARMONYOS_SDK_URL` 提供。
+- workflow 会下载并解压 SDK 包，自动探测 `tools/hvigor/bin/hvigorw.js` 和 `openharmony` SDK 目录。
+- workflow 只执行 Mock unsigned HAP 构建、HAP zip 格式检查、双 ABI `libentry.so` 检查和 artifact 上传。
 - 线上静态审计、连接分组专项审计、Real HAP 构建、push/PR 自动触发已暂时移除。
-- 这样可以先验证 DevEco runner、Hvigor、HAP 输出路径和 artifact 上传是否正确。
 - 没有新增签名材料、凭据、构建产物或原始日志。
 
 ## 线上构建入口
@@ -20,18 +22,44 @@ GitHub Actions 文件：`.github/workflows/online-build.yml`。
 
 触发方式：
 
-1. GitHub → Actions → `TabSSH HAP format build`。
+1. GitHub → Actions → `TabSSH Linux HAP format build`。
 2. 点击 `Run workflow`。
 3. 选择 `main`。
-4. 运行后下载 artifact：`opentabssh-unsigned-hap-format-test`。
+4. 填 `sdk_url`，或提前在仓库 Secret 设置 `HARMONYOS_SDK_URL`。
+5. 可选填写 `sdk_sha256`，用于校验 SDK 包。
+6. 运行后下载 artifact：`opentabssh-linux-unsigned-hap-format-test`。
 
-当前 workflow 只做三步：
+当前 workflow 主要步骤：
 
-- `scripts\build_mock_hap.ps1`
-- `scripts\verify_mock_hap.ps1`
-- 上传 `entry-default-unsigned.hap`
+- `actions/checkout@v4`
+- `actions/setup-node@v4`，Node 20。
+- 下载 SDK 包。
+- 解压 zip / tar 类 SDK 包。
+- 自动定位 DevEco `tools` 与 OpenHarmony SDK。
+- 写入 `local.properties`。
+- 执行 `node scripts/run_hvigor_with_sdk_patch.js assembleHap`。
+- 查找 `outputs` 下的 `.hap`。
+- 执行 `unzip -t` 校验 HAP zip 格式。
+- 检查 HAP 内是否存在 arm64-v8a 与 x86_64 的 `libentry.so`。
+- 上传 HAP、SHA256 和 HAP 文件列表。
 
-注意：GitHub 托管 runner 没有 DevEco/HarmonyOS SDK，HAP 构建必须使用带 `tabssh-deveco` 标签的自托管 Windows runner。线上产物仍是 unsigned HAP，不等于发布签名包。
+## SDK 包要求
+
+SDK 包解压后必须能找到：
+
+```text
+tools/hvigor/bin/hvigorw.js
+sdk/default/openharmony
+```
+
+目录可以更深，但必须包含等价的 `hvigor/bin/hvigorw.js` 和 `openharmony` 目录。workflow 会自动搜索，不要求固定根目录名。
+
+私有下载地址可以通过 Secret 提供：
+
+```text
+HARMONYOS_SDK_URL
+HARMONYOS_SDK_TOKEN   # 可选，用 Bearer Token 下载私有包
+```
 
 ## 本地推荐先跑
 
@@ -39,7 +67,7 @@ GitHub Actions 文件：`.github/workflows/online-build.yml`。
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_local_checks.ps1 -SkipMockBuild
 ```
 
-如果只想对齐线上最小 HAP 格式构建，再跑：
+如果只想对齐本地最小 HAP 格式构建，再跑：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_mock_hap.ps1
@@ -48,7 +76,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 ## 构建成功后再逐步加回
 
-必须先确认线上最小 HAP 格式构建通过，再按顺序恢复：
+必须先确认线上 Linux 最小 HAP 格式构建通过，再按顺序恢复：
 
 1. PowerShell 语法检查。
 2. `audit_project.ps1`。
@@ -58,16 +86,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 6. 真实 SSH/SFTP/转发验证。
 7. push/PR 自动审计。
 
-不要一次性全部加回，否则失败时难以判断是 DevEco runner、Hvigor、ArkTS、Native、审计脚本还是 artifact 路径问题。
+不要一次性全部加回，否则失败时难以判断是 SDK 包结构、Hvigor、ArkTS、Native、审计脚本还是 artifact 路径问题。
 
 ## 构建后必须验证
 
 ### HAP 格式
 
 - Workflow 成功结束。
-- artifact 名称为 `opentabssh-unsigned-hap-format-test`。
+- artifact 名称为 `opentabssh-linux-unsigned-hap-format-test`。
 - artifact 内存在 `entry-default-unsigned.hap`。
-- `verify_mock_hap.ps1` 确认 HAP 内含 arm64-v8a 与 x86_64 native entries。
+- HAP zip 格式通过 `unzip -t`。
+- HAP 内含 arm64-v8a 与 x86_64 的 `libentry.so`。
 
 ### 基础页面回归
 
