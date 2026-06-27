@@ -18,6 +18,14 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 密码、私钥和口令不能进入源码或普通首选项。HostKey 首次信任/变更警告已编码；私钥文件可导入应用私有目录并删除，但长期凭据仍需 HUKS/ASSET 安全存储。初始源码中的示例密码已移除。
 
+## P1：线上 Linux HAP 构建仍待首次跑通
+
+2026-06-26 曾把线上构建误按自托管 Windows runner 设计，导致 workflow 长时间处于已列队状态。经验总结：纯 GitHub 在线构建必须使用 GitHub 托管 Linux runner，不能依赖自托管 runner 标签。
+
+2026-06-26 当前 `.github/workflows/online-build.yml` 已改为参考 `rustdesk_harmonyos` 成功结构：基础 SDK 初始化、full SDK 安装、full hvigor 替换、环境变量设置、Hvigor 构建、HAP zip 检查和双 ABI `libentry.so` 检查。该流程尚未在本仓库取得成功 run 证据；失败时优先查看 full SDK 安装、full hvigor 替换、SDK 定位和 Hvigor 构建四段日志。
+
+2026-06-26 线上构建现在只验证 Mock unsigned HAP 格式，不自动跑静态审计、不构建 Real HAP、不响应 push/PR。经验总结：必须先让最小 Linux HAP 格式构建通过，再逐步加回 PowerShell/静态审计、分组专项审计、安装冒烟、Real HAP 和 push/PR 自动检查，避免一次失败无法定位原因。
+
 ## P1：文档与配置曾不一致
 
 旧 README 写 `io.github.opentabssh`，实际 `build-profile.json5` 与 `AppScope/app.json5` 均为 `com.open.tabssh`；现已统一，以构建配置为准。
@@ -36,7 +44,7 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 ## P1：连接分组页尚未编译验证
 
-2026-06-26 新增 `ConnectionGroupPage` 并注册路由，页面使用内存仓库提供分组列表、新建分组、折叠/展开、删除空分组和每组主机数。该页面仍未接首页入口，且未经过 Hvigor/HAP 编译、页面跳转或设备点击验证。经验总结：新增页面必须同时更新 `main_pages.json`、文件职责、进度和测试指南；页面存在不等于 Android 连接管理已完成。
+2026-06-26 新增 `ConnectionGroupPage` 并注册路由，页面使用内存仓库提供分组列表、新建分组、改名、换色、上移/下移、折叠/展开、空分组处理和每组主机数。该页面仍未接首页入口，且未经过 Hvigor/HAP 编译、页面跳转或设备点击验证。经验总结：新增页面必须同时更新 `main_pages.json`、文件职责、进度和测试指南；页面存在不等于 Android 连接管理已完成。
 
 ## P1：仓库内生成产物
 
