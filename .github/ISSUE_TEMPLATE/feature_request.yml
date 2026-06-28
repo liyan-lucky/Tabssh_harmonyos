@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new feature or improvement for TabSSH / OpenTabSsh.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please keep feature requests focused and do not include credentials, private hosts, SDK archives, or proprietary materials.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What do you want to add or improve?
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: Explain why this is useful.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - UI / ArkUI
+        - Terminal
+        - SSH authentication
+        - Host key verification
+        - SFTP
+        - Port forwarding
+        - Native C++ / N-API
+        - CI / packaging
+        - Documentation
+        - Compliance / licensing
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Proposed behavior
+      description: Describe the expected behavior or design.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Compliance checklist
+      options:
+        - label: This request does not require committing proprietary SDKs, signing materials, credentials, or private keys.
+          required: true
+        - label: I understand this is not an official Huawei, HarmonyOS, OpenHarmony, OpenSSH, SSH, or libssh2 project.
+          required: true
