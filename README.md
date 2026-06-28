@@ -16,3 +16,17 @@ OpenTabSsh 是面向 HarmonyOS 的原生 SSH 客户端工程，使用 ArkTS/ArkU
 新对话先完整读取 [AGENT_HANDOFF.md](docs/AGENT_HANDOFF.md)，再按 [文档索引](docs/README.md) 的必读顺序继续。所有构建、测试、日志、下载、备份和临时证据统一放在工作区共享的 `99_Temp`，详细职责见 [WORKSPACE_PATHS.md](docs/WORKSPACE_PATHS.md)。`99_Temp` 属于多个项目，禁止整体清空，任何 APK 一律不得删除。
 
 中文项目说明见 [README_zh.md](README_zh.md)。
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+Third-party components, SDKs, tools, and dependencies remain under their respective licenses. Their notices should be reviewed in `THIRD_PARTY_NOTICES.md` once the dependency audit is completed.
+
+## Legal Notice
+
+TabSSH/OpenTabSsh is an independent open source project. It is not an official Huawei, HarmonyOS, OpenHarmony, OpenAtom Foundation, SSH, OpenSSH, or libssh2 product.
+
+HarmonyOS, OpenHarmony, Huawei, and other names may be trademarks of their respective owners. Their use in this repository is only for compatibility, build, or platform identification.
+
+Do not commit private keys, signing certificates, SDK archives, proprietary SDK files, credentials, tokens, device logs containing secrets, or user connection information to this repository.
