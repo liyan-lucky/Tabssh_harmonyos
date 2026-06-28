@@ -1,0 +1,53 @@
+name: Compliance review
+description: Request a license, SDK, trademark, dependency, or release compliance review.
+title: "[Compliance]: "
+labels: ["compliance", "legal-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for dependency, SDK, release, trademark, or redistribution questions. This project cannot provide formal legal advice.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Review category
+      options:
+        - New dependency
+        - Native library or binary
+        - SDK / toolchain usage
+        - Release artifact
+        - Trademark / naming
+        - License text / notice
+        - CI / packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Describe what needs review.
+    validations:
+      required: true
+  - type: textarea
+    id: materials
+    attributes:
+      label: Components or files involved
+      description: List dependency names, versions, URLs, files, or artifact names.
+      placeholder: |
+        - libssh2 version ...
+        - OpenSSL version ...
+        - HAP artifact ...
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Initial checklist
+      options:
+        - label: I included the exact dependency version or artifact name when available.
+          required: false
+        - label: I did not attach SDK archives, certificates, private keys, tokens, or proprietary files.
+          required: true
+        - label: I understand third-party components remain under their own licenses.
+          required: true
