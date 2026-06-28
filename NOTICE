@@ -1,0 +1,25 @@
+TabSSH / OpenTabSsh Notices
+
+Copyright (c) 2026 Yan Li and TabSSH contributors.
+
+This project is distributed under the MIT License. See the LICENSE file for the full license text.
+
+Third-Party Components
+
+This repository may reference, depend on, or be built with third-party components, package managers, SDKs, build tools, native libraries, and operating-system APIs. Each third-party component remains subject to its own license terms and copyright notices. This NOTICE file does not replace the license text or notices of any third-party project.
+
+A detailed dependency and license inventory should be maintained in THIRD_PARTY_NOTICES.md. If a third-party component is added, updated, vendored, statically linked, dynamically linked, or redistributed, its license and notice requirements must be reviewed before release.
+
+Platform and SDK Notice
+
+HarmonyOS, OpenHarmony, Huawei, DevEco Studio, and related SDK or tooling names may be trademarks or service marks of their respective owners. They are referenced only to identify compatible platforms, build environments, APIs, or developer tooling.
+
+This repository must not redistribute proprietary SDK archives, SDK extracted files, signing certificates, private keys, keystores, account tokens, device credentials, user SSH credentials, or other restricted materials unless the repository maintainers have explicit rights to do so.
+
+Unofficial Project Notice
+
+TabSSH / OpenTabSsh is an independent open source project. It is not an official Huawei, HarmonyOS, OpenHarmony, OpenAtom Foundation, OpenSSH, SSH Communications Security, or libssh2 product. The maintainers do not claim endorsement, certification, sponsorship, or official support from those organizations or projects.
+
+Security and Credential Notice
+
+Do not commit secrets, private keys, signing certificates, access tokens, passwords, SSH connection credentials, device identifiers, user logs containing secrets, or proprietary SDK contents to this repository. Reports involving sensitive security information should follow SECURITY.md once it is added.
