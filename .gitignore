@@ -1,9 +1,14 @@
+# IDE and editor files
 /.appanalyzer/
 /.codeartsdoer/
-/.hvigor/
-/.hvigor_home/
 /.idea/
 /.vscode/
+.DS_Store
+Thumbs.db
+
+# HarmonyOS / Hvigor / OHPM build state
+/.hvigor/
+/.hvigor_home/
 /build/
 /entry/.cxx/
 /entry/.preview/
@@ -12,25 +17,87 @@
 /node_modules/
 /oh_modules/
 /local.properties
-/signing/
 
-*.app
-*.bak
+# DevEco / SDK / toolchain material - do not redistribute
+/harmonyos-sdk/
+/openharmony-sdk/
+/deveco-sdk/
+/command-line-tools/
+/sdk/
+/sdk/default/
+/sdk-pkg.json
+*.sdk.zip
+*harmonyos-sdk*.zip
+*openharmony-sdk*.zip
+*harmonyos-hvigor*.zip
+
+# Signing, credentials, secrets, and certificates
+/signing/
+/secrets/
+/certs/
+/keys/
 *.cer
+*.cert
+*.crt
 *.csr
-*.dmp
-*.hap
-*.hsp
 *.jks
 *.key
 *.keystore
-*.log
+*.mobileprovision
 *.p12
 *.p7b
 *.pem
-*.so
-*.tmp
-.DS_Store
+*.pk8
+*.priv
+*.pub
+*.rsa
+*.token
+*.env
+.env
+.env.*
+!.env.example
 
+# HarmonyOS/OpenHarmony package outputs
+*.app
+*.hap
+*.har
+*.hsp
+*.aab
+*.apk
+*.idsig
+*.sig
+
+# Native build outputs and binary artifacts
+*.a
+*.dll
+*.dylib
+*.o
+*.obj
+*.so
+*.so.*
+*.lib
+*.pdb
+*.dmp
+
+# Logs, backups, temporary files
+*.bak
+*.log
+*.tmp
+*.trace
+*.stacktrace
+*.zip.tmp
+
+# Third-party native staging build outputs
 /entry/src/main/cpp/third_party/**/build/
 /entry/src/main/cpp/third_party/**/libs/
+/entry/src/main/cpp/third_party/**/*.a
+/entry/src/main/cpp/third_party/**/*.so
+/entry/src/main/cpp/third_party/**/*.dll
+/entry/src/main/cpp/third_party/**/*.dylib
+
+# Local release staging and shared workspace outputs
+/99_Temp/
+/release/
+/releases/
+/dist/
+/artifacts/
