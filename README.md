@@ -17,11 +17,24 @@ OpenTabSsh 是面向 HarmonyOS 的原生 SSH 客户端工程，使用 ArkTS/ArkU
 
 中文项目说明见 [README_zh.md](README_zh.md)。
 
+## Project Governance
+
+- [License](LICENSE)
+- [Notice](NOTICE)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Security policy](SECURITY.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Support policy](SUPPORT.md)
+- [Changelog](CHANGELOG.md)
+- [Legal and compliance notes](docs/LEGAL.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
-Third-party components, SDKs, tools, and dependencies remain under their respective licenses. Their notices should be reviewed in `THIRD_PARTY_NOTICES.md` once the dependency audit is completed.
+Third-party components, SDKs, tools, and dependencies remain under their respective licenses. Their notices should be reviewed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) once the dependency audit is completed.
 
 ## Legal Notice
 
