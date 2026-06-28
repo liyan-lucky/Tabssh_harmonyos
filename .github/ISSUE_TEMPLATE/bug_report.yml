@@ -1,0 +1,83 @@
+name: Bug report
+description: Report a reproducible build, runtime, UI, SSH, SFTP, or packaging bug.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include passwords, private keys, tokens, signing certificates, SDK archives, or sensitive device logs.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or release
+      description: Commit SHA, branch, release tag, or artifact name.
+      placeholder: "e.g. 160061b... or opentabssh-harmonyos-arm64-v8a-unsigned-hap"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - HarmonyOS
+        - OpenHarmony
+        - Both
+        - Unknown
+    validations:
+      required: true
+  - type: input
+    id: abi
+    attributes:
+      label: ABI
+      placeholder: "arm64-v8a / x86_64 / both"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device or emulator
+      placeholder: "Device model, emulator, OS version"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide clear steps using redacted data only.
+      placeholder: |
+        1. Install ...
+        2. Open ...
+        3. Tap ...
+        4. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or screenshots
+      description: Remove secrets, hostnames, private IPs, SSH keys, tokens, and user data before posting.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Safety checklist
+      options:
+        - label: I removed passwords, private keys, tokens, certificates, and sensitive logs.
+          required: true
+        - label: I am not attaching proprietary SDK archives or extracted SDK files.
+          required: true
