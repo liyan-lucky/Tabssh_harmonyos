@@ -23,6 +23,7 @@ foreach ($path in @($StageRoot, $OutputRoot)) {
   }
 }
 
+& (Join-Path $PSScriptRoot "update_build_info.ps1") | Out-Host
 & (Join-Path $PSScriptRoot "stage_project_for_build.ps1") -StageRoot $StageRoot | Out-Host
 
 $devecoRoot = "C:\Program Files\Huawei\DevEco Studio"
@@ -44,7 +45,18 @@ $nodeExe = Join-Path $nodeDir "node.exe"
 $runner = Join-Path $StageRoot "scripts\run_hvigor_with_sdk_patch.js"
 if (-not (Test-Path -LiteralPath $nodeExe)) { throw "DevEco node.exe was not found: $nodeExe" }
 if (-not (Test-Path -LiteralPath $runner)) { throw "Hvigor compatibility runner was not staged: $runner" }
+$javaHome = if ($env:JAVA_HOME -and (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME "bin\java.exe"))) {
+  $env:JAVA_HOME
+} else {
+  Join-Path $devecoRoot "jbr"
+}
+if (-not (Test-Path -LiteralPath (Join-Path $javaHome "bin\java.exe"))) {
+  throw "Java runtime was not found: $javaHome"
+}
+$env:JAVA_HOME = $javaHome
+$env:PATH = (Join-Path $javaHome "bin") + [IO.Path]::PathSeparator + $env:PATH
 $env:DEVECO_TOOLS_ROOT = Join-Path $devecoRoot "tools"
+$env:DEVECO_SDK_HOME = $hwsdkDir
 $env:TABSSH_HWSDK_ROOT = $hwsdkDir
 
 $logRoot = Join-Path $tempRoot "tabssh_harmonyos_logs"

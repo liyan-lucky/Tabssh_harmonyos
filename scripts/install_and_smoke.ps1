@@ -90,6 +90,16 @@ try {
   $hapItem = Get-Item -LiteralPath $HapPath
   Add-Result "hap-input" $true ("{0} bytes SHA256 {1}" -f $hapItem.Length, $hapHash)
 
+  $buildInfoPath = Join-Path $projectRoot "entry\src\main\ets\common\BuildInfo.ets"
+  if (Test-Path -LiteralPath $buildInfoPath) {
+    $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw
+    $versionName = [regex]::Match($buildInfo, "APP_VERSION_NAME:\s*string\s*=\s*'([^']*)'").Groups[1].Value
+    $buildTime = [regex]::Match($buildInfo, "BUILD_TIME:\s*string\s*=\s*'([^']*)'").Groups[1].Value
+    Add-Result "build-info" ($versionName.Length -gt 0 -and $buildTime.Length -gt 0) ("version {0}; build time {1}" -f $versionName, $buildTime)
+  } else {
+    Add-Result "build-info" $false "BuildInfo.ets missing"
+  }
+
   $install = Invoke-Hdc "install" @("install", "-r", $HapPath)
   $installOk = $install.Output -match "success|finished|install bundle successfully"
   Add-Result "install" $installOk "install command completed; inspect raw log for exact device wording"
@@ -105,9 +115,10 @@ try {
     Add-Result "ability-start" $true "skipped by -NoLaunch"
   }
 
-  $pid = Invoke-Hdc "pidof" @("shell", "pidof", $BundleName) -AllowFail
-  $pidText = $pid.Output.Trim()
-  Add-Result "pidof" ($pid.ExitCode -eq 0 -and $pidText.Length -gt 0) (if ($pidText.Length -gt 0) { "pid: $pidText" } else { "pid unavailable" })
+  $pidResult = Invoke-Hdc "pidof" @("shell", "pidof", $BundleName) -AllowFail
+  $pidText = $pidResult.Output.Trim()
+  $pidDetail = if ($pidText.Length -gt 0) { "pid: $pidText" } else { "pid unavailable" }
+  Add-Result "pidof" ($pidResult.ExitCode -eq 0 -and $pidText.Length -gt 0) $pidDetail
 
   $hilog = Invoke-Hdc "hilog-tail" @("shell", "hilog", "-x", "-t", "200", "-m", "1000") -AllowFail
   $filtered = ($hilog.Output -split "`n") | Where-Object { $_ -match "com\.open\.tabssh|OpenTabSsh|FATAL|Fatal|cppcrash|jscrash|appfreeze|APP_INPUT_BLOCK" }
@@ -137,7 +148,7 @@ try {
   )
   foreach ($item in $results) {
     $status = if ($item.Pass) { "PASS" } else { "FAIL" }
-    $detail = ([string]$item.Detail).Replace("|", "`")
+    $detail = ([string]$item.Detail).Replace("|", "/")
     $lines += "| $($item.Name) | $status | $detail |"
   }
   $lines += ""

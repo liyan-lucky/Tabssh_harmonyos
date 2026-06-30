@@ -2,6 +2,7 @@ import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { ConnectionProfile } from '../common/models/ConnectionProfile';
 import {
+  ConnectionGroup,
   ProfileFilter,
   SORT_CONNECTION_COUNT_DESC,
   SORT_FAVORITE_FIRST,
@@ -14,20 +15,30 @@ import {
 import { ProfileRepository } from '../common/storage/ProfileRepository';
 import { NativeSshCore } from '../common/native/NativeSshCore';
 import { createIconColorFilter } from '../common/IconUtils';
+import { AUDIT_BULK_ACTION } from '../common/models/ConnectionAuditLog';
+import { AppTheme } from '../common/AppTheme';
+import {
+  AppSettingsRepository,
+  LANG_EN,
+  LANG_ZH,
+  THEME_DARK,
+  THEME_LIGHT
+} from '../common/AppSettings';
+import { I18n } from '../common/I18n';
 
 interface WorkbenchAction {
-  title: string;
+  titleKey: string;
   icon: Resource;
   type: string;
 }
 
 interface BottomTabItem {
-  title: string;
+  titleKey: string;
   icon: Resource;
 }
 
 interface SortChipItem {
-  title: string;
+  titleKey: string;
   mode: string;
 }
 
@@ -40,39 +51,46 @@ struct Index {
   @State searchKeyword: string = '';
   @State sortMode: string = SORT_MANUAL;
   @State favoriteOnly: boolean = false;
+  @State groups: ConnectionGroup[] = [];
+  @State selectedGroupId: string = '';
+  @State bulkMode: boolean = false;
+  @State selectedProfileIds: string[] = [];
+  @State autoSave: boolean = true;
+  @State autoCompress: boolean = false;
+  @StorageProp('avoidStatusBarHeight') avoidStatusBarHeight: number = 0;
   @StorageProp('avoidNavigationBarHeight') avoidNavigationBarHeight: number = 0;
+  @StorageLink('appThemeMode') themeMode: string = THEME_LIGHT;
+  @StorageLink('appLanguage') language: string = LANG_ZH;
 
   private readonly accentColor: string = '#0A84FF';
-  private readonly pageBg: string = '#F3F7FF';
-  private readonly textPrimary: string = '#111827';
-  private readonly textSecond: string = '#8A8F99';
-  private readonly lineColor: string = '#ECEEF3';
 
   private actions: WorkbenchAction[] = [
-    { title: '主机列表', icon: $rawfile('settings_server.svg'), type: 'hosts' },
-    { title: '钥匙串', icon: $rawfile('settings_shield.svg'), type: 'keys' },
-    { title: 'Redis连接', icon: $rawfile('settings_cpu.svg'), type: 'redis' },
-    { title: 'SFTP连接', icon: $rawfile('ft_remote.svg'), type: 'sftp' },
-    { title: '文件管理', icon: $rawfile('settings_folder.svg'), type: 'files' },
-    { title: '局域网传输', icon: $rawfile('settings_network.svg'), type: 'lan' },
-    { title: '访问日志', icon: $rawfile('settings_timer.svg'), type: 'logs' },
-    { title: '运维笔记', icon: $rawfile('settings_privacy.svg'), type: 'notes' }
+    { titleKey: 'workbench.history', icon: $rawfile('settings_timer.svg'), type: 'history' },
+    { titleKey: 'workbench.groups', icon: $rawfile('settings_folder.svg'), type: 'groups' },
+    { titleKey: 'workbench.importExport', icon: $rawfile('settings_update.svg'), type: 'transfer' },
+    { titleKey: 'workbench.keys', icon: $rawfile('settings_shield.svg'), type: 'keys' },
+    { titleKey: 'workbench.redis', icon: $rawfile('settings_cpu.svg'), type: 'redis' },
+    { titleKey: 'workbench.sftp', icon: $rawfile('ft_remote.svg'), type: 'sftp' },
+    { titleKey: 'workbench.files', icon: $rawfile('settings_folder.svg'), type: 'files' },
+    { titleKey: 'workbench.lan', icon: $rawfile('settings_network.svg'), type: 'lan' },
+    { titleKey: 'workbench.audit', icon: $rawfile('settings_timer.svg'), type: 'logs' },
+    { titleKey: 'workbench.notes', icon: $rawfile('settings_privacy.svg'), type: 'notes' }
   ];
 
   private tabs: BottomTabItem[] = [
-    { title: '工作台', icon: $rawfile('settings_tune.svg') },
-    { title: '连接', icon: $rawfile('settings_network.svg') },
-    { title: '监控', icon: $rawfile('settings_monitor.svg') },
-    { title: '我的', icon: $rawfile('settings_person.svg') }
+    { titleKey: 'tab.workbench', icon: $rawfile('settings_tune.svg') },
+    { titleKey: 'tab.connections', icon: $rawfile('settings_network.svg') },
+    { titleKey: 'tab.monitor', icon: $rawfile('settings_monitor.svg') },
+    { titleKey: 'tab.mine', icon: $rawfile('settings_display.svg') }
   ];
 
   private sortChips: SortChipItem[] = [
-    { title: '默认', mode: SORT_MANUAL },
-    { title: '名称', mode: SORT_NAME_ASC },
-    { title: '主机', mode: SORT_HOST_ASC },
-    { title: '最近', mode: SORT_LAST_CONNECTED_DESC },
-    { title: '次数', mode: SORT_CONNECTION_COUNT_DESC },
-    { title: '收藏', mode: SORT_FAVORITE_FIRST }
+    { titleKey: 'connections.defaultSort', mode: SORT_MANUAL },
+    { titleKey: 'connections.nameSort', mode: SORT_NAME_ASC },
+    { titleKey: 'connections.hostSort', mode: SORT_HOST_ASC },
+    { titleKey: 'connections.recentSort', mode: SORT_LAST_CONNECTED_DESC },
+    { titleKey: 'connections.countSort', mode: SORT_CONNECTION_COUNT_DESC },
+    { titleKey: 'connections.favoriteSort', mode: SORT_FAVORITE_FIRST }
   ];
 
   aboutToAppear(): void {
@@ -85,15 +103,123 @@ struct Index {
   }
 
   reload(): void {
+    const groups: ConnectionGroup[] = ProfileRepository.listGroups();
+    this.groups = groups;
+    if (this.selectedGroupId.length > 0 &&
+      groups.findIndex((item: ConnectionGroup) => item.id === this.selectedGroupId) < 0) {
+      this.selectedGroupId = '';
+    }
     const filter: ProfileFilter = createDefaultProfileFilter();
     filter.keyword = this.searchKeyword;
+    filter.groupId = this.selectedGroupId;
     filter.favoriteOnly = this.favoriteOnly;
     filter.sortMode = this.sortMode;
     this.profiles = ProfileRepository.listFiltered(filter);
+    this.pruneBulkSelection();
+  }
+
+  private t(key: string): string {
+    return I18n.t(this.language, key);
+  }
+
+  private textPrimary(): string {
+    return AppTheme.textPrimary(this.themeMode);
+  }
+
+  private textSecond(): string {
+    return AppTheme.textSecond(this.themeMode);
+  }
+
+  private textMuted(): string {
+    return AppTheme.textMuted(this.themeMode);
+  }
+
+  private pageBg(): string {
+    return AppTheme.pageBg(this.themeMode);
+  }
+
+  private cardBg(): string {
+    return AppTheme.cardBg(this.themeMode);
+  }
+
+  private elevatedBg(): string {
+    return AppTheme.elevatedBg(this.themeMode);
+  }
+
+  private lineColor(): string {
+    return AppTheme.line(this.themeMode);
+  }
+
+  private chipBg(): string {
+    return AppTheme.chipBg(this.themeMode);
+  }
+
+  private iconSoftBg(): string {
+    return AppTheme.iconSoftBg(this.themeMode);
+  }
+
+  private highlightBg(): string {
+    return AppTheme.isDark(this.themeMode) ? '#1D3B5F' : '#EAF3FF';
+  }
+
+  private favoriteBg(): string {
+    return AppTheme.isDark(this.themeMode) ? '#3A2A14' : '#FFF7ED';
+  }
+
+  private bottomNavBg(): string {
+    return AppTheme.bottomNavBg(this.themeMode);
+  }
+
+  private bottomNavBorder(): string {
+    return AppTheme.bottomNavBorder(this.themeMode);
+  }
+
+  private bottomNavInactive(): string {
+    return AppTheme.bottomNavInactive(this.themeMode);
+  }
+
+  private bottomNavShadow(): string {
+    return AppTheme.bottomNavShadow(this.themeMode);
+  }
+
+  private bottomNavBottomInset(): number {
+    return this.avoidNavigationBarHeight + 16;
+  }
+
+  private contentBottomInset(): number {
+    return this.avoidNavigationBarHeight + 96;
+  }
+
+  private headerOverlayHeight(): number {
+    return this.avoidStatusBarHeight + 104;
+  }
+
+  private contentTopInset(): number {
+    return this.headerOverlayHeight() + 8;
+  }
+
+  private openToolboxPage(): void {
+    router.pushUrl({ url: 'pages/ToolboxPage' });
+  }
+
+  private visibleWorkbenchHosts(): ConnectionProfile[] {
+    return ProfileRepository.list().slice(0, 4);
   }
 
   private toast(message: string): void {
     promptAction.showToast({ message: message, duration: 1800 });
+  }
+
+  private setThemeMode(mode: string): void {
+    this.themeMode = mode;
+    AppSettingsRepository.setThemeMode(mode);
+    this.toast(this.t('settings.themeToast'));
+  }
+
+  private setLanguage(language: string): void {
+    this.language = language;
+    AppSettingsRepository.setLanguage(language);
+    this.toast(I18n.t(language, 'settings.languageToast'));
   }
 
   private toggleFavorite(profile: ConnectionProfile): void {
@@ -103,47 +229,205 @@ struct Index {
     this.reload();
   }
 
+  private pruneBulkSelection(): void {
+    const nextSelected: string[] = [];
+    this.selectedProfileIds.forEach((id: string) => {
+      if (this.profiles.findIndex((item: ConnectionProfile) => item.id === id) >= 0) {
+        nextSelected.push(id);
+      }
+    });
+    this.selectedProfileIds = nextSelected;
+  }
+
+  private selectedCount(): number {
+    return this.selectedProfileIds.length;
+  }
+
+  private isProfileSelected(profileId: string): boolean {
+    return this.selectedProfileIds.indexOf(profileId) >= 0;
+  }
+
+  private toggleBulkMode(): void {
+    this.bulkMode = !this.bulkMode;
+    this.selectedProfileIds = [];
+  }
+
+  private toggleProfileSelected(profile: ConnectionProfile): void {
+    const nextSelected: string[] = [];
+    let found: boolean = false;
+    this.selectedProfileIds.forEach((id: string) => {
+      if (id === profile.id) {
+        found = true;
+      } else {
+        nextSelected.push(id);
+      }
+    });
+    if (!found) {
+      nextSelected.push(profile.id);
+    }
+    this.selectedProfileIds = nextSelected;
+  }
+
+  private selectAllVisible(): void {
+    this.selectedProfileIds = this.profiles.map((item: ConnectionProfile) => item.id);
+  }
+
+  private clearBulkSelection(): void {
+    this.selectedProfileIds = [];
+  }
+
+  private applyBulkFavorite(favorite: boolean): void {
+    if (this.selectedProfileIds.length === 0) {
+      this.toast(this.t('connections.selectHostFirst'));
+      return;
+    }
+    const count: number = this.selectedProfileIds.length;
+    this.profiles.forEach((item: ConnectionProfile) => {
+      if (this.isProfileSelected(item.id)) {
+        const updated: ConnectionProfile = JSON.parse(JSON.stringify(item)) as ConnectionProfile;
+        updated.favorite = favorite;
+        ProfileRepository.save(updated);
+      }
+    });
+    ProfileRepository.recordAuditLog(AUDIT_BULK_ACTION, 'success', '', this.t('connections.bulkActionLabel'),
+      (favorite ? this.t('connections.bulkFavoriteLog') : this.t('connections.bulkUnfavoriteLog')) +
+      count.toString() + this.t('connections.hostCountSuffix'));
+    this.toast(favorite ? this.t('connections.bulkFavoriteDone') : this.t('connections.bulkUnfavoriteDone'));
+    this.reload();
+  }
+
+  private applyBulkGroup(groupId: string): void {
+    if (this.selectedProfileIds.length === 0) {
+      this.toast(this.t('connections.selectHostFirst'));
+      return;
+    }
+    const count: number = this.selectedProfileIds.length;
+    this.profiles.forEach((item: ConnectionProfile) => {
+      if (this.isProfileSelected(item.id)) {
+        const updated: ConnectionProfile = JSON.parse(JSON.stringify(item)) as ConnectionProfile;
+        updated.groupId = groupId;
+        ProfileRepository.save(updated);
+      }
+    });
+    ProfileRepository.recordAuditLog(AUDIT_BULK_ACTION, 'success', '', this.t('connections.bulkActionLabel'),
+      this.t('connections.bulkMoveLog') + count.toString() + this.t('connections.hostCountSuffix'));
+    this.toast(this.t('connections.bulkMoveDone'));
+    this.reload();
+  }
+
+  private removeSelectedProfiles(): void {
+    if (this.selectedProfileIds.length === 0) {
+      this.toast(this.t('connections.selectHostFirst'));
+      return;
+    }
+    const count: number = this.selectedProfileIds.length;
+    this.selectedProfileIds.forEach((id: string) => ProfileRepository.remove(id));
+    ProfileRepository.recordAuditLog(AUDIT_BULK_ACTION, 'success', '', this.t('connections.bulkActionLabel'),
+      this.t('connections.bulkDeleteLog') + count.toString() + this.t('connections.hostCountSuffix'));
+    this.toast(this.t('connections.bulkDeleteDone'));
+    this.selectedProfileIds = [];
+    this.bulkMode = false;
+    this.reload();
+  }
+
+  private matchStart(value: string): number {
+    const keyword: string = this.searchKeyword.trim().toLowerCase();
+    if (keyword.length === 0) {
+      return -1;
+    }
+    return value.toLowerCase().indexOf(keyword);
+  }
+
+  private matchBefore(value: string): string {
+    const start: number = this.matchStart(value);
+    return start >= 0 ? value.substring(0, start) : value;
+  }
+
+  private matchText(value: string): string {
+    const start: number = this.matchStart(value);
+    const keyword: string = this.searchKeyword.trim();
+    return start >= 0 ? value.substring(start, start + keyword.length) : '';
+  }
+
+  private matchAfter(value: string): string {
+    const start: number = this.matchStart(value);
+    const keyword: string = this.searchKeyword.trim();
+    return start >= 0 ? value.substring(start + keyword.length) : '';
+  }
+
+  private matchedField(profile: ConnectionProfile): string {
+    if (this.searchKeyword.trim().length === 0) {
+      return '';
+    }
+    if (this.matchStart(profile.name) >= 0) {
+      return this.t('connections.matchedName');
+    }
+    if (this.matchStart(profile.host) >= 0) {
+      return this.t('connections.matchedHost');
+    }
+    if (this.matchStart(profile.username) >= 0) {
+      return this.t('connections.matchedUser');
+    }
+    if (this.matchStart(profile.remarks) >= 0) {
+      return this.t('connections.matchedRemark');
+    }
+    return '';
+  }
+
+  private openGroupPage(): void {
+    router.pushUrl({ url: 'pages/ConnectionGroupPage' });
+  }
+
   private formatConnectionMeta(profile: ConnectionProfile): string {
     if (profile.connectionCount > 0 && profile.lastConnectedAt > 0) {
-      return '已连接 ' + profile.connectionCount.toString() + ' 次';
+      return this.t('workbench.connectedCount') + profile.connectionCount.toString() +
+        this.t('workbench.connectedTimes');
     }
     if (profile.lastErrorMessage.length > 0) {
-      return '上次失败：' + profile.lastErrorMessage;
+      return this.t('workbench.lastFailure') + profile.lastErrorMessage;
     }
-    return '未连接';
+    return this.t('workbench.neverConnected');
   }
 
   private handleAction(item: WorkbenchAction): void {
-    if (item.type === 'hosts') {
-      this.activeTab = 1;
-      return;
-    }
     if (item.type === 'sftp') {
       router.pushUrl({ url: 'pages/SftpPage' });
       return;
     }
+    if (item.type === 'groups') {
+      this.openGroupPage();
+      return;
+    }
+    if (item.type === 'history') {
+      router.pushUrl({ url: 'pages/ConnectionHistoryPage' });
+      return;
+    }
+    if (item.type === 'transfer') {
+      router.pushUrl({ url: 'pages/ConnectionImportExportPage' });
+      return;
+    }
     if (item.type === 'keys') {
-      this.toast('钥匙串页面已预留，后续接入 HUKS / 本地加密密钥管理');
+      this.toast(this.t('workbench.keysToast'));
       return;
     }
     if (item.type === 'redis') {
-      this.toast('Redis 连接页面已预留，后续可接入 TCP/RESP 客户端');
+      this.toast(this.t('workbench.redisToast'));
       return;
     }
     if (item.type === 'files') {
-      this.toast('文件管理页面已预留，可对接 SFTP / 本地沙箱文件');
+      this.toast(this.t('workbench.filesToast'));
       return;
     }
     if (item.type === 'lan') {
-      this.toast('局域网传输页面已预留');
+      this.toast(this.t('workbench.lanToast'));
       return;
     }
     if (item.type === 'logs') {
-      this.toast('访问日志页面已预留');
+      router.pushUrl({ url: 'pages/AuditLogPage' });
       return;
     }
     if (item.type === 'notes') {
-      this.toast('运维笔记页面已预留');
+      this.toast(this.t('workbench.notesToast'));
       return;
     }
   }
@@ -153,13 +437,13 @@ struct Index {
     if (this.activeTab === 2) {
       Row() {
         Column({ space: 2 }) {
-          Text('设备监控')
+          Text(this.t('monitor.title'))
             .fontSize(24)
             .fontWeight(FontWeight.Bold)
-            .fontColor(this.textPrimary)
-          Text('0 台设备在线')
+            .fontColor(this.textPrimary())
+          Text(this.t('monitor.online'))
             .fontSize(13)
-            .fontColor(this.textSecond)
+            .fontColor(this.textSecond())
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
@@ -167,7 +451,7 @@ struct Index {
         Image($rawfile('settings_terminal.svg'))
           .width(22)
           .height(22)
-          .colorFilter(createIconColorFilter(this.textPrimary))
+          .colorFilter(createIconColorFilter(this.textPrimary()))
           .margin({ right: 18 })
         Circle()
           .width(14)
@@ -177,7 +461,7 @@ struct Index {
         Image($rawfile('ft_sort.svg'))
           .width(22)
           .height(22)
-          .colorFilter(createIconColorFilter(this.textSecond))
+          .colorFilter(createIconColorFilter(this.textSecond()))
       }
       .width('100%')
       .height(72)
@@ -190,13 +474,13 @@ struct Index {
             Image($rawfile('settings_server.svg'))
               .width(21)
               .height(21)
-              .colorFilter(createIconColorFilter(this.textPrimary))
+              .colorFilter(createIconColorFilter(this.textPrimary()))
               .margin({ right: 8 })
           }
-          Text(this.activeTab === 3 ? '设置' : this.tabs[this.activeTab].title)
+          Text(this.t(this.tabs[this.activeTab].titleKey))
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-            .fontColor(this.textPrimary)
+            .fontColor(this.textPrimary())
         }
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
@@ -207,8 +491,8 @@ struct Index {
             Image($rawfile('settings_tune.svg'))
               .width(22)
               .height(22)
-              .colorFilter(createIconColorFilter(this.textPrimary))
-              .onClick(() => router.pushUrl({ url: 'pages/SettingsPage' }))
+              .colorFilter(createIconColorFilter(this.textPrimary()))
+              .onClick(() => this.openToolboxPage())
           } else if (this.activeTab === 1) {
             Image($rawfile('ft_new_folder.svg'))
               .width(26)
@@ -231,7 +515,7 @@ struct Index {
     Text(title)
       .fontSize(15)
       .fontWeight(FontWeight.Medium)
-      .fontColor('#64748B')
+      .fontColor(this.textSecond())
       .width('92%')
       .margin({ top: 14, bottom: 8 })
   }
@@ -258,12 +542,12 @@ struct Index {
           Text(title)
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.textPrimary)
+            .fontColor(this.textPrimary())
             .maxLines(1)
           if (subtitle.length > 0) {
             Text(subtitle)
               .fontSize(12)
-              .fontColor(this.textSecond)
+              .fontColor(this.textSecond())
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
@@ -275,7 +559,7 @@ struct Index {
           .width(18)
           .height(18)
           .rotate({ angle: 90 })
-          .colorFilter(createIconColorFilter('#94A3B8'))
+          .colorFilter(createIconColorFilter(this.textMuted()))
       }
       .width('100%')
       .height(subtitle.length > 0 ? 62 : 54)
@@ -283,10 +567,170 @@ struct Index {
       .onClick(action)
 
       if (showDivider) {
-        Divider().color(this.lineColor).strokeWidth(1).margin({ left: 62 })
+        Divider().color(this.lineColor()).strokeWidth(1).margin({ left: 62 })
       }
     }
     .width('100%')
+  }
+
+  @Builder
+  SettingsIconBox(icon: Resource, color: string) {
+    Row() {
+      Image(icon)
+        .width(21)
+        .height(21)
+        .colorFilter(createIconColorFilter('#FFFFFF'))
+    }
+    .width(36)
+    .height(36)
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor(color)
+    .borderRadius(10)
+    .margin({ right: 12 })
+  }
+
+  @Builder
+  SettingsSegmentButton(title: string, selected: boolean, width: number, action: () => void) {
+    Text(title)
+      .fontSize(12)
+      .fontWeight(selected ? FontWeight.Medium : FontWeight.Regular)
+      .fontColor(selected ? Color.White : this.textSecond())
+      .width(width)
+      .height(32)
+      .textAlign(TextAlign.Center)
+      .backgroundColor(selected ? this.accentColor : this.chipBg())
+      .borderRadius(10)
+      .onClick(action)
+  }
+
+  @Builder
+  SettingsLanguageRow(showDivider: boolean = true) {
+    Column() {
+      Row() {
+        this.SettingsIconBox($rawfile('settings_language.svg'), '#1598E8')
+        Column({ space: 1 }) {
+          Text(this.t('settings.language'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+          Text(this.language === LANG_EN ? this.t('common.english') : this.t('common.chinese'))
+            .fontSize(12)
+            .fontColor(this.textSecond())
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Row({ space: 8 }) {
+          this.SettingsSegmentButton(this.t('common.chinese'), this.language !== LANG_EN, 58, () => this.setLanguage(LANG_ZH))
+          this.SettingsSegmentButton('EN', this.language === LANG_EN, 58, () => this.setLanguage(LANG_EN))
+        }
+      }
+      .width('100%')
+      .height(64)
+      .padding({ left: 14, right: 12 })
+      if (showDivider) {
+        Divider().color(this.lineColor()).margin({ left: 62 })
+      }
+    }
+  }
+
+  @Builder
+  SettingsThemeRow(showDivider: boolean = true) {
+    Column() {
+      Row() {
+        this.SettingsIconBox($rawfile('settings_palette.svg'), '#20B8E6')
+        Column({ space: 1 }) {
+          Text(this.t('settings.theme'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+          Text(this.themeMode === THEME_DARK ? this.t('common.dark') : this.t('common.light'))
+            .fontSize(12)
+            .fontColor(this.textSecond())
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Row({ space: 8 }) {
+          this.SettingsSegmentButton(this.t('common.light'), this.themeMode !== THEME_DARK, 64,
+            () => this.setThemeMode(THEME_LIGHT))
+          this.SettingsSegmentButton(this.t('common.dark'), this.themeMode === THEME_DARK, 64,
+            () => this.setThemeMode(THEME_DARK))
+        }
+      }
+      .width('100%')
+      .height(64)
+      .padding({ left: 14, right: 12 })
+      if (showDivider) {
+        Divider().color(this.lineColor()).margin({ left: 62 })
+      }
+    }
+  }
+
+  @Builder
+  SettingsValueRow(icon: Resource, title: string, value: string, color: string, action: () => void,
+    showDivider: boolean = true) {
+    Column() {
+      Row() {
+        this.SettingsIconBox(icon, color)
+        Column({ space: 1 }) {
+          Text(title)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+          if (value.length > 0) {
+            Text(value)
+              .fontSize(12)
+              .fontColor(this.textSecond())
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Image($rawfile('ft_up.svg'))
+          .width(18)
+          .height(18)
+          .rotate({ angle: 90 })
+          .colorFilter(createIconColorFilter(this.textMuted()))
+      }
+      .width('100%')
+      .height(58)
+      .padding({ left: 14, right: 14 })
+      .onClick(action)
+      if (showDivider) {
+        Divider().color(this.lineColor()).margin({ left: 62 })
+      }
+    }
+  }
+
+  @Builder
+  SettingsToggleRow(icon: Resource, title: string, enabled: boolean, color: string,
+    action: (value: boolean) => void, showDivider: boolean = true) {
+    Column() {
+      Row() {
+        this.SettingsIconBox(icon, color)
+        Column({ space: 1 }) {
+          Text(title)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+          Text(enabled ? this.t('common.enabled') : this.t('common.disabled'))
+            .fontSize(12)
+            .fontColor(this.textSecond())
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Toggle({ type: ToggleType.Switch, isOn: enabled })
+          .selectedColor(this.accentColor)
+          .switchPointColor(Color.White)
+          .onChange(action)
+      }
+      .width('100%')
+      .height(58)
+      .padding({ left: 14, right: 10 })
+      if (showDivider) {
+        Divider().color(this.lineColor()).margin({ left: 62 })
+      }
+    }
   }
 
   @Builder
@@ -298,16 +742,16 @@ struct Index {
           .height(22)
           .colorFilter(createIconColorFilter(this.accentColor))
           .margin({ left: 13, right: 13 })
-        Text(item.title)
+        Text(this.t(item.titleKey))
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.textPrimary)
+          .fontColor(this.textPrimary())
           .layoutWeight(1)
         Image($rawfile('ft_up.svg'))
           .width(18)
           .height(18)
           .rotate({ angle: 90 })
-          .colorFilter(createIconColorFilter('#C9CDD4'))
+          .colorFilter(createIconColorFilter(this.textMuted()))
           .margin({ right: 2 })
       }
       .width('100%')
@@ -316,7 +760,7 @@ struct Index {
       .onClick(() => this.handleAction(item))
 
       if (index < this.actions.length - 1) {
-        Divider().color(this.lineColor).strokeWidth(1)
+        Divider().color(this.lineColor()).strokeWidth(1)
       }
     }
     .width('100%')
@@ -326,13 +770,37 @@ struct Index {
   FilterChip(title: string, selected: boolean, action: () => void) {
     Text(title)
       .fontSize(12)
-      .fontColor(selected ? Color.White : '#64748B')
+      .fontColor(selected ? Color.White : this.textSecond())
       .fontWeight(selected ? FontWeight.Medium : FontWeight.Regular)
       .padding({ left: 11, right: 11, top: 6, bottom: 6 })
-      .backgroundColor(selected ? this.accentColor : '#F1F5F9')
+      .backgroundColor(selected ? this.accentColor : this.chipBg())
       .borderRadius(12)
       .margin({ right: 8 })
       .onClick(action)
+  }
+
+  @Builder
+  HighlightedText(value: string, fontSize: number, fontColor: string, weight: FontWeight = FontWeight.Regular,
+    maxLines: number = 1) {
+    Text() {
+      if (this.matchStart(value) >= 0) {
+        Span(this.matchBefore(value))
+          .fontColor(fontColor)
+        Span(this.matchText(value))
+          .fontColor(this.accentColor)
+          .fontWeight(FontWeight.Medium)
+          .textBackgroundStyle({ color: this.highlightBg() })
+        Span(this.matchAfter(value))
+          .fontColor(fontColor)
+      } else {
+        Span(value)
+          .fontColor(fontColor)
+      }
+    }
+    .fontSize(fontSize)
+    .fontWeight(weight)
+    .maxLines(maxLines)
+    .textOverflow({ overflow: TextOverflow.Ellipsis })
   }
 
   @Builder
@@ -342,12 +810,12 @@ struct Index {
         Image($rawfile('settings_tune.svg'))
           .width(18)
           .height(18)
-          .colorFilter(createIconColorFilter('#64748B'))
+          .colorFilter(createIconColorFilter(this.textSecond()))
           .margin({ right: 8 })
-        TextInput({ placeholder: '搜索名称、主机、用户或备注', text: this.searchKeyword })
+        TextInput({ placeholder: this.t('connections.searchPlaceholder'), text: this.searchKeyword })
           .fontSize(14)
-          .fontColor(this.textPrimary)
-          .placeholderColor('#94A3B8')
+          .fontColor(this.textPrimary())
+          .placeholderColor(this.textMuted())
           .backgroundColor(Color.Transparent)
           .layoutWeight(1)
           .height(38)
@@ -359,24 +827,39 @@ struct Index {
       .width('100%')
       .height(42)
       .padding({ left: 12, right: 12 })
-      .backgroundColor('#F8FAFC')
+      .backgroundColor(this.elevatedBg())
       .borderRadius(14)
 
       Row() {
-        this.FilterChip('全部', !this.favoriteOnly, () => {
+        this.FilterChip(this.t('common.all'), !this.favoriteOnly, () => {
           this.favoriteOnly = false;
           this.reload();
         })
-        this.FilterChip('只看收藏', this.favoriteOnly, () => {
+        this.FilterChip(this.t('connections.onlyFavorites'), this.favoriteOnly, () => {
           this.favoriteOnly = true;
           this.reload();
         })
       }
       .width('100%')
 
+      Flex({ wrap: FlexWrap.Wrap }) {
+        this.FilterChip(this.t('connections.allGroups'), this.selectedGroupId.length === 0, () => {
+          this.selectedGroupId = '';
+          this.reload();
+        })
+        ForEach(this.groups, (group: ConnectionGroup) => {
+          this.FilterChip(group.name, this.selectedGroupId === group.id, () => {
+            this.selectedGroupId = group.id;
+            this.reload();
+          })
+        }, (group: ConnectionGroup) => group.id)
+        this.FilterChip(this.t('connections.manageGroups'), false, () => this.openGroupPage())
+      }
+      .width('100%')
+
       Row() {
         ForEach(this.sortChips, (item: SortChipItem) => {
-          this.FilterChip(item.title, this.sortMode === item.mode, () => {
+          this.FilterChip(this.t(item.titleKey), this.sortMode === item.mode, () => {
             this.sortMode = item.mode;
             this.reload();
           })
@@ -386,15 +869,72 @@ struct Index {
     }
     .width('92%')
     .padding(12)
-    .backgroundColor(Color.White)
+    .backgroundColor(this.cardBg())
     .borderRadius(18)
-    .shadow({ radius: 8, color: '#0A000000', offsetY: 2 })
+    .shadow({ radius: 8, color: AppTheme.shadow(this.themeMode), offsetY: 2 })
+  }
+
+  @Builder
+  BulkActionBar() {
+    Column({ space: 10 }) {
+      Row() {
+        Column({ space: 2 }) {
+          Text(this.bulkMode ? (this.t('connections.bulkSelected') + this.selectedCount().toString() + ' / ' +
+            this.profiles.length.toString()) : this.t('connections.bulkManage'))
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+          Text(this.bulkMode ? this.t('connections.bulkHintActive') : this.t('connections.bulkHint'))
+            .fontSize(11)
+            .fontColor(this.textSecond())
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        this.FilterChip(this.bulkMode ? this.t('connections.exitBulk') : this.t('connections.bulk'), this.bulkMode,
+          () => this.toggleBulkMode())
+      }
+      .width('100%')
+
+      if (this.bulkMode) {
+        Flex({ wrap: FlexWrap.Wrap }) {
+          this.FilterChip(this.t('connections.selectAll'), this.selectedCount() === this.profiles.length && this.profiles.length > 0,
+            () => this.selectAllVisible())
+          this.FilterChip(this.t('connections.clearSelection'), this.selectedCount() === 0, () => this.clearBulkSelection())
+          this.FilterChip(this.t('connections.markFavorite'), false, () => this.applyBulkFavorite(true))
+          this.FilterChip(this.t('connections.cancelFavorite'), false, () => this.applyBulkFavorite(false))
+          ForEach(this.groups, (group: ConnectionGroup) => {
+            this.FilterChip(this.t('connections.moveToGroupPrefix') + group.name, false, () => this.applyBulkGroup(group.id))
+          }, (group: ConnectionGroup) => group.id)
+          this.FilterChip(this.t('connections.deleteSelected'), false, () => this.removeSelectedProfiles())
+        }
+        .width('100%')
+      }
+    }
+    .width('92%')
+    .padding(12)
+    .backgroundColor(this.cardBg())
+    .borderRadius(16)
+    .shadow({ radius: 8, color: AppTheme.shadow(this.themeMode), offsetY: 2 })
+    .margin({ top: 10 })
   }
 
   @Builder
   ProfileRow(profile: ConnectionProfile, index: number) {
     Column() {
       Row() {
+        if (this.bulkMode) {
+          Text(this.isProfileSelected(profile.id) ? this.t('connections.selected') : this.t('connections.unselected'))
+            .fontSize(11)
+            .fontColor(this.isProfileSelected(profile.id) ? Color.White : this.textSecond())
+            .fontWeight(FontWeight.Medium)
+            .width(38)
+            .height(28)
+            .textAlign(TextAlign.Center)
+            .backgroundColor(this.isProfileSelected(profile.id) ? this.accentColor : this.chipBg())
+            .borderRadius(9)
+            .margin({ right: 8 })
+            .onClick(() => this.toggleProfileSelected(profile))
+        }
         Row() {
           Image($rawfile('settings_server.svg'))
             .width(22)
@@ -404,38 +944,40 @@ struct Index {
         .width(38)
         .height(38)
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#EAF3FF')
+        .backgroundColor(this.iconSoftBg())
         .borderRadius(12)
         .margin({ right: 10 })
 
         Column({ space: 3 }) {
           Row() {
-            Text(profile.name)
-              .fontSize(16)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(this.textPrimary)
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .layoutWeight(1)
+            Row() {
+              this.HighlightedText(profile.name, 16, this.textPrimary(), FontWeight.Medium)
+            }
+            .layoutWeight(1)
             if (profile.favorite) {
-              Text('收藏')
+              Text(this.t('common.favorite'))
                 .fontSize(10)
                 .fontColor('#F59E0B')
                 .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                .backgroundColor('#FFF7ED')
+                .backgroundColor(this.favoriteBg())
+                .borderRadius(8)
+                .margin({ left: 6 })
+            }
+            if (this.matchedField(profile).length > 0) {
+              Text(this.matchedField(profile))
+                .fontSize(10)
+                .fontColor(this.accentColor)
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                .backgroundColor(this.iconSoftBg())
                 .borderRadius(8)
                 .margin({ left: 6 })
             }
           }
           .width('100%')
-          Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
-            .fontSize(12)
-            .fontColor(this.textSecond)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          this.HighlightedText(profile.username + '@' + profile.host + ':' + profile.port.toString(), 12, this.textSecond())
           Text(this.formatConnectionMeta(profile))
             .fontSize(11)
-            .fontColor('#94A3B8')
+            .fontColor(this.textMuted())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
@@ -443,20 +985,30 @@ struct Index {
         .layoutWeight(1)
 
         Column({ space: 6 }) {
-          Text(profile.favorite ? '取消' : '收藏')
-            .fontSize(12)
-            .fontColor(profile.favorite ? '#F59E0B' : '#64748B')
-            .padding({ left: 9, right: 9, top: 5, bottom: 5 })
-            .backgroundColor(profile.favorite ? '#FFF7ED' : '#F1F5F9')
-            .borderRadius(9)
-            .onClick(() => this.toggleFavorite(profile))
-          Text('连接')
-            .fontSize(13)
-            .fontColor(this.accentColor)
-            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-            .backgroundColor('#EAF3FF')
-            .borderRadius(10)
-            .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
+          if (!this.bulkMode) {
+            Text(profile.favorite ? this.t('common.unfavorite') : this.t('common.favorite'))
+              .fontSize(12)
+              .fontColor(profile.favorite ? '#F59E0B' : this.textSecond())
+              .padding({ left: 9, right: 9, top: 5, bottom: 5 })
+              .backgroundColor(profile.favorite ? this.favoriteBg() : this.chipBg())
+              .borderRadius(9)
+              .onClick(() => this.toggleFavorite(profile))
+            Text(this.t('common.connect'))
+              .fontSize(13)
+              .fontColor(this.accentColor)
+              .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+              .backgroundColor(this.iconSoftBg())
+              .borderRadius(10)
+              .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
+          } else {
+            Text(this.isProfileSelected(profile.id) ? this.t('connections.cancelSelect') : this.t('connections.select'))
+              .fontSize(12)
+              .fontColor(this.accentColor)
+              .padding({ left: 8, right: 8, top: 6, bottom: 6 })
+              .backgroundColor(this.iconSoftBg())
+              .borderRadius(10)
+              .onClick(() => this.toggleProfileSelected(profile))
+          }
         }
         .alignItems(HorizontalAlign.End)
       }
@@ -465,36 +1017,156 @@ struct Index {
       .padding({ left: 12, right: 12 })
 
       if (index < this.profiles.length - 1) {
-        Divider().color(this.lineColor).margin({ left: 62 })
+        Divider().color(this.lineColor()).margin({ left: this.bulkMode ? 108 : 62 })
       }
     }
     .width('100%')
   }
 
   @Builder
-  WorkbenchPage() {
+  WorkbenchHostRow(profile: ConnectionProfile, index: number, total: number) {
     Column() {
-      Column() {
-        ForEach(this.actions, (item: WorkbenchAction, index: number) => {
-          this.ActionRow(item, index)
-        }, (item: WorkbenchAction) => item.title)
+      Row() {
+        Row() {
+          Image($rawfile('settings_server.svg'))
+            .width(21)
+            .height(21)
+            .colorFilter(createIconColorFilter(this.accentColor))
+        }
+        .width(38)
+        .height(38)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor(this.iconSoftBg())
+        .borderRadius(12)
+        .margin({ right: 10 })
+
+        Column({ space: 3 }) {
+          Text(profile.name)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
+            .fontSize(12)
+            .fontColor(this.textSecond())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.formatConnectionMeta(profile))
+            .fontSize(11)
+            .fontColor(this.textMuted())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text(this.t('common.connect'))
+          .fontSize(13)
+          .fontColor(this.accentColor)
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor(this.iconSoftBg())
+          .borderRadius(10)
+          .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
       }
-      .width('92%')
-      .backgroundColor(Color.White)
-      .borderRadius(18)
-      .clip(true)
-      .margin({ top: 14 })
-      Blank()
+      .width('100%')
+      .height(76)
+      .padding({ left: 12, right: 12 })
+
+      if (index < total - 1) {
+        Divider().color(this.lineColor()).margin({ left: 60 })
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  WorkbenchHostList() {
+    Column() {
+      Row() {
+        Column({ space: 2 }) {
+          Text(this.t('workbench.hosts'))
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(this.textPrimary())
+          Text(this.t('workbench.hosts.subtitle'))
+            .fontSize(12)
+            .fontColor(this.textSecond())
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text(this.t('common.add'))
+          .fontSize(13)
+          .fontColor(this.accentColor)
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor(this.iconSoftBg())
+          .borderRadius(10)
+          .onClick(() => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+      }
+      .width('100%')
+      .padding({ left: 14, right: 14, top: 14, bottom: 6 })
+
+      if (this.visibleWorkbenchHosts().length === 0) {
+        Row() {
+          Text(this.t('workbench.noHosts'))
+            .fontSize(14)
+            .fontColor(this.textSecond())
+        }
+        .width('100%')
+        .height(62)
+        .justifyContent(FlexAlign.Center)
+      } else {
+        ForEach(this.visibleWorkbenchHosts(), (profile: ConnectionProfile, index: number) => {
+          this.WorkbenchHostRow(profile, index, this.visibleWorkbenchHosts().length)
+        }, (profile: ConnectionProfile) => profile.id)
+      }
+
+      Text(this.t('workbench.hosts.tip'))
+        .fontSize(11)
+        .fontColor(this.textMuted())
+        .width('100%')
+        .padding({ left: 14, right: 14, bottom: 12 })
+    }
+    .width('92%')
+    .backgroundColor(this.cardBg())
+    .borderRadius(18)
+    .clip(true)
+    .shadow({ radius: 8, color: AppTheme.shadow(this.themeMode), offsetY: 2 })
+    .margin({ top: 14 })
+  }
+
+  @Builder
+  WorkbenchPage() {
+    Scroll() {
+      Column() {
+        Blank().height(this.contentTopInset())
+        this.WorkbenchHostList()
+        this.SectionLabel(this.t('workbench.actions'))
+        Column() {
+          ForEach(this.actions, (item: WorkbenchAction, index: number) => {
+            this.ActionRow(item, index)
+          }, (item: WorkbenchAction) => item.type)
+        }
+        .width('92%')
+        .backgroundColor(this.cardBg())
+        .borderRadius(18)
+        .clip(true)
+        .margin({ bottom: 20 })
+        Blank().height(this.contentBottomInset())
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .layoutWeight(1)
-    .alignItems(HorizontalAlign.Center)
   }
 
   @Builder
   ConnectionPage() {
     Scroll() {
       Column() {
+        Blank().height(this.contentTopInset())
         Stack() {
           Text('01 101 001  SSH  110 010 11')
             .fontSize(16)
@@ -507,7 +1179,7 @@ struct Index {
               .fontSize(28)
               .fontWeight(FontWeight.Bold)
               .fontColor('#38BDF8')
-            Text('安全、稳定、高效的 SSH 连接工具')
+            Text(this.t('connections.heroSubtitle'))
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
               .fontColor(Color.White)
@@ -519,45 +1191,55 @@ struct Index {
         .borderRadius(18)
         .margin({ top: 10 })
 
-        Text('连接方式')
+        Text(this.t('connections.methods'))
           .fontSize(24)
           .fontWeight(FontWeight.Bold)
-          .fontColor(this.textPrimary)
+          .fontColor(this.textPrimary())
           .width('92%')
           .margin({ top: 16 })
-        Text('添加主机、使用 SFTP，或进入本地终端。')
+        Text(this.t('connections.methodsSubtitle'))
           .fontSize(13)
-          .fontColor(this.textSecond)
+          .fontColor(this.textSecond())
           .width('92%')
           .margin({ top: 5, bottom: 10 })
 
         Column() {
-          this.CompactOptionRow($rawfile('settings_server.svg'), 'SSH 主机连接', '新建或管理密码 / 私钥连接', '#0A84FF',
+          this.CompactOptionRow($rawfile('settings_server.svg'), this.t('connections.sshHost'),
+            this.t('connections.sshHostSub'), '#0A84FF',
             () => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
-          this.CompactOptionRow($rawfile('ft_folder.svg'), '通过 SFTP 连接', '复用已认证的 SSH 会话', '#2EA8E5',
+          this.CompactOptionRow($rawfile('settings_folder.svg'), this.t('workbench.groups'),
+            this.t('connections.groupsSub'), '#2EA8E5',
+            () => this.openGroupPage())
+          this.CompactOptionRow($rawfile('settings_update.svg'), this.t('settings.importExport'),
+            this.t('connections.importExportSub'), '#22C55E',
+            () => router.pushUrl({ url: 'pages/ConnectionImportExportPage' }))
+          this.CompactOptionRow($rawfile('ft_folder.svg'), this.t('workbench.sftp'), this.t('connections.sftpSub'), '#35C7D7',
             () => router.pushUrl({ url: 'pages/SftpPage' }))
-          this.CompactOptionRow($rawfile('settings_network.svg'), '发现局域网设备', '局域网扫描功能开发中', '#35C7D7',
-            () => this.toast('局域网设备发现尚未接入真实扫描'))
-          this.CompactOptionRow($rawfile('settings_terminal.svg'), '本地终端', '本地 shell 功能开发中', '#38BDF8',
-            () => this.toast('本地终端尚未实现'), false)
+          this.CompactOptionRow($rawfile('settings_network.svg'), this.t('connections.lan'),
+            this.t('connections.lanSub'), '#38BDF8',
+            () => this.toast(this.t('connections.lanPendingToast')))
+          this.CompactOptionRow($rawfile('settings_terminal.svg'), this.t('connections.localTerminal'),
+            this.t('connections.localTerminalSub'), '#22C55E',
+            () => this.toast(this.t('connections.localTerminalToast')), false)
         }
         .width('92%')
-        .backgroundColor(Color.White)
+        .backgroundColor(this.cardBg())
         .borderRadius(18)
         .clip(true)
 
-        this.SectionLabel('已保存主机')
+        this.SectionLabel(this.t('connections.savedHosts'))
         this.ConnectionFilterCard()
+        this.BulkActionBar()
         if (this.profiles.length === 0) {
           Row() {
-            Text('没有匹配主机，调整搜索或点击右上角 + 添加')
+            Text(this.t('connections.noMatch'))
               .fontSize(14)
-              .fontColor(this.textSecond)
+              .fontColor(this.textSecond())
           }
           .width('92%')
           .height(62)
           .justifyContent(FlexAlign.Center)
-          .backgroundColor(Color.White)
+          .backgroundColor(this.cardBg())
           .borderRadius(16)
           .margin({ top: 10 })
         } else {
@@ -567,20 +1249,21 @@ struct Index {
             }, (profile: ConnectionProfile) => profile.id)
           }
           .width('92%')
-          .backgroundColor(Color.White)
+          .backgroundColor(this.cardBg())
           .borderRadius(16)
           .clip(true)
           .margin({ top: 10 })
         }
 
-        Button('端口转发')
+        Button(this.t('connections.forward'))
           .height(40)
           .fontSize(14)
           .fontColor(this.accentColor)
-          .backgroundColor('#EAF3FF')
+          .backgroundColor(this.iconSoftBg())
           .borderRadius(12)
           .margin({ top: 12, bottom: 18 })
           .onClick(() => router.pushUrl({ url: 'pages/PortForwardPage' }))
+        Blank().height(this.contentBottomInset())
       }
       .width('100%')
       .alignItems(HorizontalAlign.Center)
@@ -592,22 +1275,23 @@ struct Index {
   @Builder
   MonitorPage() {
     Column() {
+      Blank().height(this.contentTopInset())
       Blank()
       Stack() {
-        Circle().width(132).height(132).fill('#EEF3FF')
+        Circle().width(132).height(132).fill(this.iconSoftBg())
         Image($rawfile('settings_monitor.svg'))
           .width(58)
           .height(58)
-          .colorFilter(createIconColorFilter('#D8E1EE'))
+          .colorFilter(createIconColorFilter(this.textMuted()))
       }
-      Text('暂无监控设备')
+      Text(this.t('monitor.empty'))
         .fontSize(24)
         .fontWeight(FontWeight.Bold)
-        .fontColor(this.textPrimary)
+        .fontColor(this.textPrimary())
         .margin({ top: 24 })
-      Text('添加第一台设备开始监控')
+      Text(this.t('monitor.emptySub'))
         .fontSize(15)
-        .fontColor(this.textSecond)
+        .fontColor(this.textSecond())
         .margin({ top: 10 })
       Button() {
         Row({ space: 9 }) {
@@ -615,7 +1299,7 @@ struct Index {
             .width(21)
             .height(21)
             .colorFilter(createIconColorFilter('#FFFFFF'))
-          Text('添加设备').fontSize(16).fontColor(Color.White)
+          Text(this.t('monitor.add')).fontSize(16).fontColor(Color.White)
         }
       }
       .width(190)
@@ -632,11 +1316,11 @@ struct Index {
         Image($rawfile('settings_info.svg'))
           .width(19)
           .height(19)
-          .colorFilter(createIconColorFilter('#64748B'))
-        Text('查看功能介绍').fontSize(15).fontColor('#64748B')
+          .colorFilter(createIconColorFilter(this.textSecond()))
+        Text(this.t('monitor.intro')).fontSize(15).fontColor(this.textSecond())
       }
       .margin({ top: 22 })
-      .onClick(() => this.toast('设备在线、CPU、内存、磁盘和网络监控尚未实现'))
+      .onClick(() => this.toast(this.t('monitor.pendingToast')))
       Blank()
       Row() {
         Image($rawfile('ft_new_folder.svg'))
@@ -653,6 +1337,7 @@ struct Index {
       .alignSelf(ItemAlign.End)
       .margin({ right: 20, bottom: 16 })
       .onClick(() => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+      Blank().height(this.contentBottomInset())
     }
     .width('100%')
     .layoutWeight(1)
@@ -663,66 +1348,92 @@ struct Index {
   MinePage() {
     Scroll() {
       Column() {
-        Row() {
-          Image($rawfile('settings_remark.svg'))
-            .width(26)
-            .height(26)
-            .colorFilter(createIconColorFilter('#7757E8'))
-            .margin({ right: 12 })
-          Text('富润屋，德润身，心广体胖。——《大学》')
-            .fontSize(14)
-            .fontColor(this.textPrimary)
-            .layoutWeight(1)
-            .maxLines(2)
-          Image($rawfile('refresh.svg'))
-            .width(22)
-            .height(22)
-            .colorFilter(createIconColorFilter('#64748B'))
-            .margin({ left: 8 })
-            .onClick(() => this.toast('已更新今日寄语'))
+        Blank().height(this.contentTopInset())
+        this.SectionLabel(this.t('settings.appearance'))
+        Column() {
+          this.SettingsLanguageRow()
+          this.SettingsThemeRow()
+          this.SettingsValueRow($rawfile('settings_display.svg'), this.t('settings.fontSize'),
+            this.t('settings.fontMedium'), '#7356E8', () => this.toast(this.t('settings.fontMedium')), false)
         }
         .width('92%')
-        .height(78)
-        .padding({ left: 16, right: 16 })
-        .backgroundColor(Color.White)
+        .backgroundColor(this.cardBg())
         .borderRadius(18)
-        .shadow({ radius: 8, color: '#10000000', offsetY: 3 })
-        .margin({ top: 12 })
+        .clip(true)
 
-        this.SectionLabel('终端')
+        this.SectionLabel(this.t('settings.files'))
         Column() {
-          this.CompactOptionRow($rawfile('settings_terminal.svg'), '终端设置', '字体、主题、键盘等完整配置', '#0A84FF',
+          this.SettingsToggleRow($rawfile('settings_folder.svg'), this.t('settings.autoSave'), this.autoSave, '#6554D9',
+            (value: boolean) => this.autoSave = value)
+          this.SettingsToggleRow($rawfile('settings_update.svg'), this.t('settings.autoCompress'), this.autoCompress, '#FF9F0A',
+            (value: boolean) => this.autoCompress = value)
+          this.SettingsValueRow($rawfile('ft_file.svg'), this.t('settings.maxFile'), '100 MB', '#0A84FF',
+            () => this.toast('100 MB'), false)
+        }
+        .width('92%')
+        .backgroundColor(this.cardBg())
+        .borderRadius(18)
+        .clip(true)
+
+        Text(this.t('settings.filesHint'))
+          .fontSize(12)
+          .fontColor(this.textSecond())
+          .width('88%')
+          .margin({ top: 8 })
+
+        this.SectionLabel(this.t('settings.storage'))
+        Column() {
+          this.SettingsValueRow($rawfile('settings_update.svg'), this.t('settings.importExport'),
+            this.t('settings.importExportSub'), '#22C55E',
+            () => router.pushUrl({ url: 'pages/ConnectionImportExportPage' }))
+          this.SettingsValueRow($rawfile('ft_delete.svg'), this.t('settings.clearCache'),
+            this.t('settings.clearCacheSub'), '#FF2965',
+            () => this.toast(this.t('settings.clearCacheSub')))
+          this.SettingsValueRow($rawfile('settings_server.svg'), this.t('settings.storageSpace'),
+            this.t('settings.storageSpaceSub'), '#32B4DE',
+            () => this.toast(this.t('settings.storageSpaceSub')), false)
+        }
+        .width('92%')
+        .backgroundColor(this.cardBg())
+        .borderRadius(18)
+        .clip(true)
+
+        this.SectionLabel(this.t('mine.terminal'))
+        Column() {
+          this.CompactOptionRow($rawfile('settings_terminal.svg'), this.t('mine.terminalSettings'),
+            this.t('mine.terminalSettingsSub'), '#0A84FF',
             () => router.pushUrl({ url: 'pages/TerminalSettingsPage' }), false)
         }
         .width('92%')
-        .backgroundColor(Color.White)
+        .backgroundColor(this.cardBg())
         .borderRadius(18)
         .clip(true)
 
-        this.SectionLabel('系统设置')
+        this.SectionLabel(this.t('mine.tools'))
         Column() {
-          this.CompactOptionRow($rawfile('settings_tune.svg'), '系统设置', '', '#6554D9',
-            () => router.pushUrl({ url: 'pages/SettingsPage' }))
-          this.CompactOptionRow($rawfile('settings_network.svg'), '分享应用', '', '#2FC665',
-            () => this.toast('系统分享面板接入中'), false)
+          this.CompactOptionRow($rawfile('settings_tune.svg'), this.t('workbench.toolbox'), this.t('mine.toolboxSub'), '#20B8E6',
+            () => this.openToolboxPage(), false)
         }
         .width('92%')
-        .backgroundColor(Color.White)
+        .backgroundColor(this.cardBg())
         .borderRadius(18)
         .clip(true)
 
-        this.SectionLabel('关于')
+        this.SectionLabel(this.t('mine.aboutSection'))
         Column() {
-          this.CompactOptionRow($rawfile('settings_info.svg'), '关于', 'OpenTabSsh 与 Native Core 信息', '#34B7E5',
+          this.CompactOptionRow($rawfile('settings_info.svg'), this.t('mine.about'), this.t('mine.aboutSub'), '#34B7E5',
             () => router.pushUrl({ url: 'pages/AboutPage' }))
-          this.CompactOptionRow($rawfile('settings_privacy.svg'), '备案信息', '待发布主体确认', '#FF2965',
-            () => this.toast('备案信息将在正式发布前配置'), false)
+          this.CompactOptionRow($rawfile('settings_network.svg'), this.t('mine.share'), '', '#2FC665',
+            () => this.toast(this.t('mine.shareToast')))
+          this.CompactOptionRow($rawfile('settings_privacy.svg'), this.t('mine.recordInfo'), this.t('mine.recordInfoSub'), '#FF2965',
+            () => this.toast(this.t('mine.recordInfoToast')), false)
         }
         .width('92%')
-        .backgroundColor(Color.White)
+        .backgroundColor(this.cardBg())
         .borderRadius(18)
         .clip(true)
         .margin({ bottom: 20 })
+        Blank().height(this.contentBottomInset())
       }
       .width('100%')
       .alignItems(HorizontalAlign.Center)
@@ -752,47 +1463,74 @@ struct Index {
           Image(tab.icon)
             .width(22)
             .height(22)
-            .colorFilter(createIconColorFilter(this.activeTab === index ? this.accentColor : '#8D939E'))
-          Text(tab.title)
+            .colorFilter(createIconColorFilter(this.activeTab === index ? this.accentColor : this.bottomNavInactive()))
+          Text(this.t(tab.titleKey))
             .fontSize(11)
-            .fontColor(this.activeTab === index ? this.accentColor : '#8D939E')
+            .fontColor(this.activeTab === index ? this.accentColor : this.bottomNavInactive())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .layoutWeight(1)
         .height('100%')
-        .justifyContent(FlexAlign.End)
+        .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .padding({ top: 4, bottom: 4 })
+        .padding({ top: 5, bottom: 5 })
         .onClick(() => {
           this.activeTab = index;
           if (index === 1) {
             this.reload();
           }
         })
-      }, (tab: BottomTabItem) => tab.title)
+      }, (tab: BottomTabItem) => tab.titleKey)
     }
     .width('100%')
-    .height(56)
-    .borderRadius(28)
-    .backgroundColor('#D9FFFFFF')
+    .height(60)
+    .borderRadius(30)
+    .backgroundColor(this.bottomNavBg())
     .backgroundBlurStyle(BlurStyle.Thin, {
-      colorMode: ThemeColorMode.LIGHT,
+      colorMode: AppTheme.isDark(this.themeMode) ? ThemeColorMode.DARK : ThemeColorMode.LIGHT,
       adaptiveColor: AdaptiveColor.AVERAGE
     })
-    .border({ width: 1, color: '#50FFFFFF' })
-    .shadow({ radius: 8, color: '#18000000', offsetY: 3 })
+    .border({ width: 1, color: this.bottomNavBorder() })
+    .shadow({ radius: 10, color: this.bottomNavShadow(), offsetY: 4 })
+  }
+
+  @Builder
+  HeaderOverlay() {
+    Column() {
+      Blank().height(this.avoidStatusBarHeight)
+      this.Header()
+    }
+    .width('100%')
+    .height(this.headerOverlayHeight())
+    .linearGradient({
+      angle: 180,
+      colors: AppTheme.isDark(this.themeMode)
+        ? [['#BB171A1E', 0.0], ['#AA171A1E', 0.05], ['#99171A1E', 0.12], ['#88171A1E', 0.22],
+          ['#77171A1E', 0.35], ['#66171A1E', 0.52], ['#55171A1E', 0.72], ['#33171A1E', 0.88],
+          ['#00171A1E', 1.0]]
+        : [['#C0F0F4FA', 0.0], ['#B0F0F4FA', 0.05], ['#A0F0F4FA', 0.12], ['#90F0F4FA', 0.22],
+          ['#80F0F4FA', 0.35], ['#70F0F4FA', 0.52], ['#50F0F4FA', 0.72], ['#30F0F4FA', 0.88],
+          ['#00F0F4FA', 1.0]]
+    })
   }
 
   build() {
     Stack() {
       Column() {
-        this.Header()
         this.ContentPage()
       }
       .width('100%')
       .height('100%')
-      .padding({ bottom: 72 })
+      .padding({ top: 0, bottom: 0 })
+
+      Column() {
+        this.HeaderOverlay()
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Start)
+      .hitTestBehavior(HitTestMode.Transparent)
 
       Column() {
         this.BottomNavigation()
@@ -800,11 +1538,11 @@ struct Index {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.End)
-      .padding({ left: 16, right: 16, bottom: this.avoidNavigationBarHeight + 8 })
+      .padding({ left: 16, right: 16, bottom: this.bottomNavBottomInset() })
       .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.pageBg)
+    .backgroundColor(this.pageBg())
   }
 }

@@ -79,8 +79,8 @@ terminal.consume('\u001b[2;3H\u001b[6n\u001b[c');
 check('DSR and DA', terminal.drainResponses(), '\u001b[2;3R\u001b[?1;2c');
 
 terminal = new TerminalEmulator(6, 2);
-terminal.consume('A\u0301中B');
-check('combining and wide text', terminal.render(), 'A\u0301中B');
+terminal.consume('A\u0301\u4E2DB');
+check('combining and wide text', terminal.render(), 'A\u0301\u4E2DB');
 terminal = new TerminalEmulator(4, 2);
 terminal.consume('1111\r\n2222\r\n3333');
 check('bounded scroll', terminal.render(), '1111\n2222\n3333');
@@ -91,7 +91,7 @@ check('DEC line drawing', terminal.render(), '\u250C\u2500\u2510');
 terminal = new TerminalEmulator(40, 8);
 let seed = 0x13579BDF;
 const fragments = ['abc', '\r', '\n', '\b', '\t', '\u001b[2J', '\u001b[31m', '\u001b[0m',
-  '\u001b[2;6r', '\u001b[1L', '\u001b[2P', '\u001b[?1049h', '\u001b[?1049l', '中', 'e\u0301'];
+  '\u001b[2;6r', '\u001b[1L', '\u001b[2P', '\u001b[?1049h', '\u001b[?1049l', '\u4E2D', 'e\u0301'];
 for (let index = 0; index < 2000; index++) {
   seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
   terminal.consume(fragments[seed % fragments.length]);

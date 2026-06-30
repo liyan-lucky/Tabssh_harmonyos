@@ -106,7 +106,7 @@ try {
   )
   foreach ($item in $results) {
     $status = if ($item.Pass) { "PASS" } else { "FAIL" }
-    $detail = ([string]$item.Detail).Replace("|", "`")
+    $detail = ([string]$item.Detail).Replace("|", "/")
     $lines += "| $($item.Name) | $status | $detail |"
   }
   $lines += ""

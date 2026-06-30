@@ -1,6 +1,6 @@
 # 工作区路径与清理规范
 
-`%VSCODE_ROOT%` 表示包含 `10_Tabssh_harmonyos` 与 `99_Temp` 的工作区根；当前机器是 `F:\Visual_Studio_Code`。脚本必须从项目位置推导根目录，不能把盘符或用户名写死到源码。
+`%VSCODE_ROOT%` 表示包含 `10_Tabssh_harmonyos` 与 `99_Temp` 的工作区根；当前机器是 `E:\Visual_Studio_Code`。脚本必须从项目位置推导根目录，不能把盘符或用户名写死到源码。
 
 | 用途 | 唯一路径 |
 |---|---|

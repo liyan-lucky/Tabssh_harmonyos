@@ -8,16 +8,23 @@ import { NativeSshCore } from '../common/native/NativeSshCore';
 import { TerminalEmulator, TerminalRenderLine, TerminalRenderRun } from '../common/terminal/TerminalEmulator';
 import connection from '@ohos.net.connection';
 import { BusinessError } from '@ohos.base';
+import { LANG_EN, LANG_ZH, THEME_LIGHT } from '../common/AppSettings';
+import { AppTheme } from '../common/AppTheme';
+import { I18n } from '../common/I18n';
 
 @Entry
 @Component
 struct TerminalPage {
   @State tabId: string = '';
-  @State title: string = '终端';
+  @State title: string = '';
   @State terminalText: string = '';
   @State terminalLines: TerminalRenderLine[] = [];
   @State command: string = '';
-  @State status: string = '未连接';
+  @State status: string = '';
+  @StorageProp('avoidStatusBarHeight') avoidStatusBarHeight: number = 0;
+  @StorageProp('avoidNavigationBarHeight') avoidNavigationBarHeight: number = 0;
+  @StorageLink('appThemeMode') themeMode: string = THEME_LIGHT;
+  @StorageLink('appLanguage') language: string = LANG_ZH;
   private activeProfile: ConnectionProfile | undefined = undefined;
   private emulator: TerminalEmulator = new TerminalEmulator(80, 24);
   private consumedLength: number = 0;
@@ -37,7 +44,44 @@ struct TerminalPage {
   private networkObserver: connection.NetConnection | undefined = undefined;
   private networkPollTimer: number = -1;
 
+  private t(key: string): string {
+    return I18n.t(this.language, key);
+  }
+
+  private textPrimary(): string {
+    return AppTheme.textPrimary(this.themeMode);
+  }
+
+  private headerBg(): string {
+    return AppTheme.isDark(this.themeMode) ? '#111827' : '#FFFFFF';
+  }
+
+  private shellBg(): string {
+    return AppTheme.isDark(this.themeMode) ? '#020617' : '#07111F';
+  }
+
+  private controlBg(): string {
+    return AppTheme.isDark(this.themeMode) ? '#111827' : '#162033';
+  }
+
+  private displayTitle(): string {
+    return this.title.length > 0 ? this.title : this.t('terminal.title');
+  }
+
+  private reconnectMessage(delayMilliseconds: number, attempt: number): string {
+    const seconds: string = (delayMilliseconds / 1000).toString();
+    if (this.language === LANG_EN) {
+      return this.t('terminal.reconnectInPrefix') + attempt.toString() +
+        this.t('terminal.reconnectInMiddle') + seconds + this.t('terminal.reconnectInSuffix');
+    }
+    return this.t('terminal.reconnectInPrefix') + seconds + this.t('terminal.reconnectInMiddle') +
+      attempt.toString() + this.t('terminal.reconnectInSuffix');
+  }
+
   aboutToAppear(): void {
+    if (this.status.length === 0) {
+      this.status = this.t('terminal.notConnected');
+    }
     this.startNetworkMonitoring();
     if (this.tabId.length > 0) {
       const existing: TerminalTab | undefined = TerminalSessionManager.getTab(this.tabId);
@@ -68,7 +112,7 @@ struct TerminalPage {
       this.startPolling();
       this.finishInitialConnection(tab.id);
     } else {
-      this.terminalText = '没有连接配置，请先返回首页新建连接。';
+      this.terminalText = this.t('terminal.noProfile');
     }
   }
 
@@ -84,7 +128,7 @@ struct TerminalPage {
         this.showHostKeyConfirmation(updated);
       }
     } catch (error) {
-      this.status = '连接任务异常，已安全停止';
+      this.status = this.t('terminal.connectTaskError');
     }
   }
 
@@ -111,10 +155,10 @@ struct TerminalPage {
     if (tab.connected) {
       this.cancelReconnectTimer();
       tab.reconnectAttempt = 0;
-      this.status = NativeSshCore.version().indexOf('mock') >= 0 ? 'Mock 已连接（非真实 SSH）' : 'SSH 已认证 / PTY 已打开';
+      this.status = NativeSshCore.version().indexOf('mock') >= 0 ? this.t('terminal.mockConnected') : this.t('terminal.sshReady');
       this.flushTerminalResize();
     } else {
-      this.status = '未连接 [' + tab.statusCode.toString() + '] ' + tab.statusMessage;
+      this.status = this.t('terminal.disconnectedPrefix') + ' [' + tab.statusCode.toString() + '] ' + tab.statusMessage;
       this.scheduleReconnect(tab);
     }
   }
@@ -128,14 +172,14 @@ struct TerminalPage {
   private scheduleReconnect(tab: TerminalTab): void {
     if (!this.retryable(tab) || this.reconnectTimer >= 0 || this.reconnectInFlight) return;
     if (!this.networkAvailable) {
-      this.status = '网络不可用，已暂停重连；网络恢复后立即重试';
+      this.status = this.t('terminal.networkPaused');
       return;
     }
     const attempt: number = tab.reconnectAttempt + 1;
     tab.reconnectAttempt = attempt;
     const exponent: number = Math.min(attempt - 1, 6);
     const delayMilliseconds: number = Math.min(5000 * Math.pow(2, exponent), 300000);
-    this.status = '连接中断，' + (delayMilliseconds / 1000).toString() + ' 秒后第 ' + attempt.toString() + ' 次重连';
+    this.status = this.reconnectMessage(delayMilliseconds, attempt);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = -1;
       this.performReconnect();
@@ -152,14 +196,14 @@ struct TerminalPage {
   private async performReconnect(): Promise<void> {
     if (this.intentionalClose || this.reconnectInFlight || this.tabId.length === 0) return;
     if (!this.networkAvailable) {
-      this.status = '网络不可用，等待恢复后重连';
+      this.status = this.t('terminal.networkWait');
       return;
     }
     const requestedTabId: string = this.tabId;
     const tab: TerminalTab | undefined = TerminalSessionManager.getTab(requestedTabId);
     if (tab === undefined || !this.retryable(tab)) return;
     this.reconnectInFlight = true;
-    this.status = '正在重连并重新校验 HostKey…';
+    this.status = this.t('terminal.reconnectChecking');
     try {
       const updated: TerminalTab | undefined = await TerminalSessionManager.reconnectTab(requestedTabId);
       if (updated === undefined || this.tabId !== requestedTabId || this.intentionalClose) return;
@@ -173,7 +217,7 @@ struct TerminalPage {
       if (current !== undefined) {
         current.reconnecting = false;
         current.statusCode = 1007;
-        current.statusMessage = '重连任务异常';
+        current.statusMessage = this.t('terminal.reconnectTaskError');
         this.updateFromTab(current);
       }
     } finally {
@@ -248,7 +292,7 @@ struct TerminalPage {
     if (!available) {
       this.cancelReconnectTimer();
       if (tab !== undefined && this.retryable(tab)) {
-        this.status = '网络不可用，已暂停重连；网络恢复后立即重试';
+        this.status = this.t('terminal.networkPaused');
       }
       return;
     }
@@ -272,7 +316,7 @@ struct TerminalPage {
       }
     } catch (error) {
       if (this.tabId === requestedTabId) {
-        this.status = '终端读取异常';
+        this.status = this.t('terminal.readError');
       }
     } finally {
       this.pollInFlight = false;
@@ -308,20 +352,20 @@ struct TerminalPage {
   showHostKeyConfirmation(tab: TerminalTab): void {
     const changed: boolean = tab.statusCode === 1002;
     AlertDialog.show({
-      title: changed ? '警告：服务器 HostKey 已变化' : '首次连接：确认 HostKey',
-      message: (changed ? '这可能表示服务器重装，也可能是中间人攻击。仅在你通过可信渠道核对后继续。\n\n' :
-        '认证前必须核对服务器指纹。\n\n') + tab.hostKeyAlgorithm + '\n' + tab.pendingHostKey,
+      title: changed ? this.t('terminal.hostKeyChangedTitle') : this.t('terminal.hostKeyFirstTitle'),
+      message: (changed ? this.t('terminal.hostKeyChangedMessage') + '\n\n' :
+        this.t('terminal.hostKeyFirstMessage') + '\n\n') + tab.hostKeyAlgorithm + '\n' + tab.pendingHostKey,
       primaryButton: {
-        value: '取消连接',
+        value: this.t('terminal.cancelConnection'),
         action: () => {
           this.intentionalClose = true;
           this.cancelReconnectTimer();
           TerminalSessionManager.close(tab.id);
-          this.status = '已取消：HostKey 未确认';
+          this.status = this.t('terminal.canceledHostKey');
         }
       },
       secondaryButton: {
-        value: changed ? '我已核对，替换' : '我已核对，信任',
+        value: changed ? this.t('terminal.trustReplace') : this.t('terminal.trust'),
         fontColor: changed ? '#EF4444' : '#38BDF8',
         action: () => {
           this.acceptHostKey(tab);
@@ -346,7 +390,7 @@ struct TerminalPage {
         }
       }
     } catch (error) {
-      this.status = 'HostKey 确认后的认证任务异常';
+      this.status = this.t('terminal.hostKeyConfirmError');
     }
   }
 
@@ -366,7 +410,7 @@ struct TerminalPage {
         this.updateFromTab(updated);
       }
     } catch (error) {
-      this.status = '终端写入异常';
+      this.status = this.t('terminal.writeError');
     } finally {
       this.writeInFlight = false;
     }
@@ -384,7 +428,7 @@ struct TerminalPage {
         this.updateFromTab(updated);
       }
     } catch (error) {
-      this.status = '控制键发送异常';
+      this.status = this.t('terminal.controlError');
     } finally {
       this.writeInFlight = false;
     }
@@ -400,7 +444,7 @@ struct TerminalPage {
       const updated: TerminalTab | undefined = await TerminalSessionManager.writeRaw(requestedTabId, responses);
       if (updated !== undefined && this.tabId === requestedTabId) this.updateFromTab(updated);
     } catch (error) {
-      this.status = '终端协议回复发送异常';
+      this.status = this.t('terminal.responseError');
     } finally {
       this.responseInFlight = false;
       if (this.pendingResponses.length > 0) this.flushEmulatorResponses();
@@ -439,7 +483,7 @@ struct TerminalPage {
       await TerminalSessionManager.resize(requestedTabId, columns, rows);
       succeeded = true;
     } catch (error) {
-      if (this.tabId === requestedTabId) this.status = 'PTY 尺寸同步异常';
+      if (this.tabId === requestedTabId) this.status = this.t('terminal.resizeError');
     } finally {
       this.resizeInFlight = false;
       const current: TerminalTab | undefined = TerminalSessionManager.getTab(requestedTabId);
@@ -497,12 +541,12 @@ struct TerminalPage {
   build() {
     Column() {
       Row() {
-        Button('关闭').onClick(() => this.closeAndBack())
+        Button(this.t('common.close')).onClick(() => this.closeAndBack())
         Column() {
-          Text(this.title)
+          Text(this.displayTitle())
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
+            .fontColor(this.textPrimary())
           Text(this.status)
             .fontSize(12)
             .fontColor('#38BDF8')
@@ -510,16 +554,16 @@ struct TerminalPage {
         .alignItems(HorizontalAlign.Start)
         .margin({ left: 12 })
         .layoutWeight(1)
-        Button('SFTP')
+        Button(this.t('terminal.sftp'))
           .enabled(this.tabId.length > 0)
           .onClick(() => this.openSftp())
         if (this.canReconnectNow()) {
-          Button('立即重连').margin({ left: 6 }).onClick(() => this.reconnectNow())
+          Button(this.t('terminal.reconnectNow')).margin({ left: 6 }).onClick(() => this.reconnectNow())
         }
       }
       .width('100%')
       .padding(12)
-      .backgroundColor('#111827')
+      .backgroundColor(this.headerBg())
 
       Scroll() {
         this.terminalOutput()
@@ -527,7 +571,7 @@ struct TerminalPage {
       .layoutWeight(1)
       .width('100%')
       .padding(12)
-      .backgroundColor('#020617')
+      .backgroundColor(this.shellBg())
       .onAreaChange((_oldValue, newValue) => {
         this.updateTerminalSize(Number(newValue.width), Number(newValue.height));
       })
@@ -565,22 +609,23 @@ struct TerminalPage {
       .width('100%')
       .scrollable(ScrollDirection.Horizontal)
       .scrollBar(BarState.Off)
-      .backgroundColor('#111827')
+      .backgroundColor(this.controlBg())
 
       Row() {
-        TextInput({ text: this.command, placeholder: '输入命令，例如 ls -la' })
+        TextInput({ text: this.command, placeholder: this.t('terminal.inputPlaceholder') })
           .layoutWeight(1)
           .onChange((value: string) => this.command = value)
           .onSubmit(() => this.sendCommand())
-        Button('发送')
+        Button(this.t('common.send'))
           .margin({ left: 8 })
           .onClick(() => this.sendCommand())
       }
       .padding(10)
-      .backgroundColor('#111827')
+      .backgroundColor(this.controlBg())
     }
     .height('100%')
     .width('100%')
-    .backgroundColor('#020617')
+    .padding({ top: this.avoidStatusBarHeight, bottom: this.avoidNavigationBarHeight })
+    .backgroundColor(this.shellBg())
   }
 }

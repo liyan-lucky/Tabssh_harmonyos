@@ -45,15 +45,16 @@
 ## P1：Android 常用体验对齐
 
 1. 连接管理
-   - RDB Store 替换内存仓库。
+   - RDB Store 替换内存仓库。（已编码 JSON row 方案，新增分组与分组变更摘要已通过基础跨重启回显，仍待完整点击矩阵和迁移策略）
    - 分组、收藏、搜索、排序。
    - 连接统计：lastConnectedAt、connectionCount、lastErrorMessage。
-   - 批量编辑和删除。
+   - 批量编辑和删除。（已编码，待设备逐项点击验收）
+   - 审计/访问日志。（摘要日志已编码，分组变更摘要已通过基础跨重启回显，导出保存选择器和事件筛选空状态已验证，仍待真实认证事件、导出文件回读和完整命令审计）
 
 2. SSH config / 高级连接
-   - remoteCommand。
-   - sendEnv。
-   - requestTty。
+   - remoteCommand。（OpenSSH config 导入/导出已读写该字段，Native 使用仍待补）
+   - sendEnv。（OpenSSH config 导入/导出已读写该字段，Native 使用仍待补）
+   - requestTty。（OpenSSH config 导入/导出已读写该字段）
    - ipMode IPv4/IPv6/auto。
    - compression。
    - agentForwarding。
@@ -82,6 +83,11 @@
    - 剪贴板自动清理。
    - 防截图策略验证。
 
+7. 主题、语言和工具箱
+   - 浅色/深色主题。（主壳、工作台、设置 Tab、设置页、工具箱和部分二级页已编码，仍待全局覆盖）
+   - 中文/English 双语。（主壳、工作台、设置 Tab、设置页、工具箱和部分二级页已编码，仍待全局覆盖）
+   - 工具箱入口和分类。（入口、首批纯 ArkTS 开发/系统小工具和纯 HarmonyOS 网络工具子集已编码，剩余网络能力和逐项设备证据待补）
+
 ## P2：增强能力
 
 1. 会话增强
@@ -107,7 +113,7 @@
 4. 备份/同步
    - 加密 ZIP。
    - PBKDF2 / AES-GCM。
-   - 导入/导出。
+   - 导入/导出。（已实现 OpenSSH config 与脱敏 JSON 连接备份的纯 HarmonyOS picker 路径；加密 ZIP、云同步、真实文件回读和冲突合并待补）
    - 冲突合并 UI。
 
 ## P3：Android 版高级生态
@@ -124,15 +130,26 @@
 - 扩展 `ConnectionProfile` 模型，使其能承载 Android 常见字段。
 - 新增 `normalizeConnectionProfile()`，让旧内存对象自动补齐新字段。
 - 更新 `ANDROID_TO_HARMONY_MAPPING.md`，明确字段骨架不等于功能完成。
+- 在首页工作台与连接页接入 `ConnectionGroupPage` 入口，并在连接页加入全部分组/分组名筛选芯片；2026-06-29 已取得 Mock HAP 编译、安装、冷启动和首屏入口可见性证据。
+- `ProfileRepository` 接入 HarmonyOS `relationalStore` RDB，保存分组、主机配置、收藏、排序、HostKey 元数据和连接统计；密码与私钥口令写库前清空。新增分组与分组变更摘要已通过基础跨重启回显，当前待完整设备点击、收藏/统计跨重启和 schema 迁移验证。
+- 首页连接页新增搜索命中高亮、批量模式、批量收藏/取消收藏、批量移组和批量删除；当前已通过 Mock/Real HAP 编译与 Real HAP 安装/首屏可见性检查，仍待设备逐项点击和跨重启回归。
+- `EntryAbility` 开启全屏布局、透明系统栏、窗口隐私保护和避让区写入，所有已注册 ArkUI 页面根容器使用避让区 padding；当前已通过 x86_64 多页无凭据抽样，仍待横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵。
+- 新增 `AuditLogPage`、`ConnectionAuditLog` 和 RDB `connection_audit_logs` 摘要表；首页“访问日志”入口已通过 HAP 点击进入和页面层级验证，分组变更摘要已通过基础跨重启回显，summary-only JSON 导出可唤起系统保存选择器，事件筛选芯片已通过设备层级验证。当前仅记录认证结果、批量操作和分组变更摘要，完整 Android 审计日志仍待补。
+- 新增 `ConnectionHistoryPage`，对齐 Android `ConnectionHistoryActivity` 的只读历史视图；当前基于 RDB profile 统计字段聚合历史主机、成功主机和失败记录，工作台入口与空状态已通过 Real HAP 页面层级验证，真实成功/失败行和点击进入终端仍待补。
+- 新增 `ConnectionImportExportPage` 与 `ConnectionImportExportService`，对齐 Android `ImportExportActivity` 的安全核心路径；当前支持 OpenSSH config 导入/导出和脱敏 JSON 连接备份导入/导出，工作台入口、新页面首屏、JSON 导出保存选择器和 OpenSSH 导入选择器已通过 Real HAP 页面层级验证。导入采用非覆盖合并和主机/端口/用户去重；加密 ZIP、云同步、QR 配对、真实文件写入/回读和导入样本落库仍待补。
+- 工作台右上角入口已从系统设置改为工具箱，工作台主机列表直接显示 RDB 保存的主机信息和连接按钮，第四个底部 Tab 已改为“设置”，并从“设置 / 工具 / 工具箱”接入同一 `ToolboxPage`。工具箱页当前提供本机信息、搜索、网络/系统/开发分类，并已实现 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、访问审计跳转、默认网络/DNS/网关摘要、TCP 连通性探测、端口扫描、HTTP 下载样本测速、Nginx 配置摘要和 QR 负载摘要；网络拓扑与端口扫描已有 Real HAP 设备输出。主动子网发现、上传测速、特权 ICMP、二维码图片矩阵、公网 IP、更多网卡字段、复杂 Nginx include/变量展开和 HTTP 测速/连通性/Nginx/QR 的逐项点击证据仍待补。
+- 新增 `AppSettings`、`AppTheme` 与 `I18n`，设置 Tab 可切换浅色/深色和中文/English，偏好通过 HarmonyOS preferences 持久化。当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；仍需系统语言跟随、无障碍/高对比和完整切换矩阵。顶部 Logo/标题区已改为半透明渐变过渡，底部 Tab 保留半透明 Thin blur 胶囊，`BuildInfo.ets` 与构建脚本已接入关于页版本/构建时间展示。
 
 ## 下一轮建议
 
-优先做 P1 的连接管理基础：
+优先继续 P1 的连接管理基础：
 
-1. 新增 `ConnectionGroup`、`ProfileSortMode`、`ProfileFilter` 模型。
-2. 在内存仓库先实现分组、收藏、搜索、排序。
-3. 更新首页 UI 只做轻量入口，不接 RDB。
-4. 取得 Mock HAP 编译证据后，再推进 RDB Store。
+1. 取得完整设备点击和跨重启证据，覆盖首页分组入口、分组筛选、改名、折叠/展开、收藏、批量选择/移组/删除、搜索高亮、真实连接访问日志回显、连接历史真实行、统计和返回刷新；分组新增与分组变更摘要跨重启已完成基础验证。
+2. 补 RDB schema version / migration 记录，明确 JSON row 方案到规范化表结构的升级边界。
+3. 补全屏避让多设备矩阵，确认顶部标题、滚动区域、半透明顶部/底部玻璃层和底部胶囊导航不被系统栏遮挡，且空白 overlay 不阻断滚动。
+4. 补齐工具箱剩余真实工具能力，优先使用纯 HarmonyOS API 继续完善主动子网发现、上传测速、二维码图片矩阵、公网 IP、更多网卡字段和复杂 Nginx include/变量展开，并补齐 HTTP 测速、连通性、Nginx 与 QR 的逐项设备点击证据；只有 HarmonyOS API 无法实现时才考虑三方库。
+5. 验证主题/语言完整矩阵：连接编辑、终端、SFTP 和端口转发已迁移，下一步补系统语言跟随、跨重启偏好保持、无障碍/高对比和动态文案。
+6. RDB 与批量/高亮/访问日志点击验证通过后继续推进统计页、导出文件回读、导入样本落库、加密备份和同步。
 
 ## 验收规则
 

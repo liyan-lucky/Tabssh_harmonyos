@@ -6,14 +6,51 @@ import common from '@ohos.app.ability.common';
 import { ConnectionProfile, createEmptyConnectionProfile, AUTH_PASSWORD, AUTH_PRIVATE_KEY } from '../common/models/ConnectionProfile';
 import { ConnectionGroup } from '../common/models/ConnectionGroup';
 import { ProfileRepository } from '../common/storage/ProfileRepository';
+import { LANG_ZH, THEME_LIGHT } from '../common/AppSettings';
+import { AppTheme } from '../common/AppTheme';
+import { I18n } from '../common/I18n';
 
 @Entry
 @Component
 struct ConnectionEditPage {
   @State profile: ConnectionProfile = createEmptyConnectionProfile();
   @State groups: ConnectionGroup[] = [];
-  @State title: string = '新建连接';
+  @State isEditing: boolean = false;
   @State privateKeyStatus: string = '';
+  @StorageProp('avoidStatusBarHeight') avoidStatusBarHeight: number = 0;
+  @StorageProp('avoidNavigationBarHeight') avoidNavigationBarHeight: number = 0;
+  @StorageLink('appThemeMode') themeMode: string = THEME_LIGHT;
+  @StorageLink('appLanguage') language: string = LANG_ZH;
+
+  private readonly accentColor: string = '#0A84FF';
+
+  private t(key: string): string {
+    return I18n.t(this.language, key);
+  }
+
+  private pageBg(): string {
+    return AppTheme.pageBg(this.themeMode);
+  }
+
+  private cardBg(): string {
+    return AppTheme.cardBg(this.themeMode);
+  }
+
+  private textPrimary(): string {
+    return AppTheme.textPrimary(this.themeMode);
+  }
+
+  private textSecond(): string {
+    return AppTheme.textSecond(this.themeMode);
+  }
+
+  private textMuted(): string {
+    return AppTheme.textMuted(this.themeMode);
+  }
+
+  private chipBg(): string {
+    return AppTheme.chipBg(this.themeMode);
+  }
 
   aboutToAppear(): void {
     this.groups = ProfileRepository.listGroups();
@@ -22,7 +59,7 @@ struct ConnectionEditPage {
       const found = ProfileRepository.get(params['profileId']);
       if (found !== undefined) {
         this.profile = found;
-        this.title = '编辑连接';
+        this.isEditing = true;
       }
     }
     if (this.profile.groupId.length === 0 && this.groups.length > 0) {
@@ -37,11 +74,11 @@ struct ConnectionEditPage {
   save(): void {
     if (this.profile.host.trim().length === 0 || this.profile.username.trim().length === 0 ||
       this.profile.port < 1 || this.profile.port > 65535) {
-      promptAction.showToast({ message: '请填写有效的主机、端口和用户名', duration: 2200 });
+      promptAction.showToast({ message: this.t('edit.invalidRequired'), duration: 2200 });
       return;
     }
     if (this.profile.authType === AUTH_PRIVATE_KEY && this.profile.privateKeyPath.length === 0) {
-      promptAction.showToast({ message: '请先从系统文件选择器导入私钥', duration: 2200 });
+      promptAction.showToast({ message: this.t('edit.keyRequired'), duration: 2200 });
       return;
     }
     ProfileRepository.save(this.profile);
@@ -72,11 +109,11 @@ struct ConnectionEditPage {
       }
 
       this.profile.privateKeyPath = destination;
-      this.privateKeyStatus = '私钥已导入应用私有目录；不会写入工程、日志或普通配置。';
-      promptAction.showToast({ message: '私钥导入成功', duration: 1800 });
+      this.privateKeyStatus = this.t('edit.keyImportedStatus');
+      promptAction.showToast({ message: this.t('edit.keyImportSuccess'), duration: 1800 });
     } catch (error) {
-      this.privateKeyStatus = '私钥导入未完成。';
-      promptAction.showToast({ message: '私钥导入失败或已取消', duration: 2200 });
+      this.privateKeyStatus = this.t('edit.keyImportIncomplete');
+      promptAction.showToast({ message: this.t('edit.keyImportFailed'), duration: 2200 });
     }
   }
 
@@ -88,13 +125,13 @@ struct ConnectionEditPage {
       try {
         fs.unlinkSync(path);
       } catch (error) {
-        this.privateKeyStatus = '私钥文件删除失败，请稍后重试。';
+        this.privateKeyStatus = this.t('edit.keyDeleteFailed');
         return;
       }
     }
     this.profile.privateKeyPath = '';
     this.profile.privateKeyPassphrase = '';
-    this.privateKeyStatus = '已清除当前连接的私钥。';
+    this.privateKeyStatus = this.t('edit.keyCleared');
   }
 
   @Builder
@@ -102,8 +139,8 @@ struct ConnectionEditPage {
     Button(group.name)
       .height(34)
       .fontSize(13)
-      .fontColor(this.profile.groupId === group.id ? Color.White : '#64748B')
-      .backgroundColor(this.profile.groupId === group.id ? '#0A84FF' : '#EAF3FF')
+      .fontColor(this.profile.groupId === group.id ? Color.White : this.textSecond())
+      .backgroundColor(this.profile.groupId === group.id ? this.accentColor : this.chipBg())
       .borderRadius(12)
       .margin({ right: 8, bottom: 8 })
       .onClick(() => this.profile.groupId = group.id)
@@ -112,11 +149,11 @@ struct ConnectionEditPage {
   build() {
     Column() {
       Row() {
-        Button('返回').onClick(() => router.back())
-        Text(this.title)
+        Button(this.t('common.back')).onClick(() => router.back())
+        Text(this.t(this.isEditing ? 'edit.titleEdit' : 'edit.titleNew'))
           .fontSize(24)
           .fontWeight(FontWeight.Bold)
-          .fontColor(Color.White)
+          .fontColor(this.textPrimary())
           .margin({ left: 12 })
       }
       .width('100%')
@@ -124,28 +161,28 @@ struct ConnectionEditPage {
 
       Scroll() {
         Column() {
-          TextInput({ text: this.profile.name, placeholder: '连接名称' })
+          TextInput({ text: this.profile.name, placeholder: this.t('edit.namePlaceholder') })
             .onChange((value: string) => this.profile.name = value)
             .margin({ bottom: 10 })
-          TextInput({ text: this.profile.host, placeholder: '主机地址 / IP' })
+          TextInput({ text: this.profile.host, placeholder: this.t('edit.hostPlaceholder') })
             .onChange((value: string) => this.profile.host = value)
             .margin({ bottom: 10 })
-          TextInput({ text: this.profile.port.toString(), placeholder: '端口，默认 22' })
+          TextInput({ text: this.profile.port.toString(), placeholder: this.t('edit.portPlaceholder') })
             .type(InputType.Number)
             .onChange((value: string) => this.profile.port = Number(value))
             .margin({ bottom: 10 })
-          TextInput({ text: this.profile.username, placeholder: '用户名' })
+          TextInput({ text: this.profile.username, placeholder: this.t('edit.usernamePlaceholder') })
             .onChange((value: string) => this.profile.username = value)
             .margin({ bottom: 10 })
 
           Column() {
-            Text('所属分组')
+            Text(this.t('edit.group'))
               .fontSize(13)
-              .fontColor('#94A3B8')
+              .fontColor(this.textMuted())
               .width('100%')
               .margin({ bottom: 8 })
             if (this.groups.length === 0) {
-              Text('暂无分组，可先在连接分组页新建')
+              Text(this.t('edit.groupEmpty'))
                 .fontSize(12)
                 .fontColor('#F59E0B')
                 .width('100%')
@@ -161,38 +198,38 @@ struct ConnectionEditPage {
           }
           .width('100%')
           .padding(12)
-          .backgroundColor('#111827')
+          .backgroundColor(this.cardBg())
           .borderRadius(14)
           .margin({ bottom: 10 })
 
           Row() {
-            Button('密码')
+            Button(this.t('edit.password'))
               .layoutWeight(1)
-              .backgroundColor(this.profile.authType === AUTH_PASSWORD ? '#0A84FF' : '#94A3B8')
+              .backgroundColor(this.profile.authType === AUTH_PASSWORD ? this.accentColor : this.textMuted())
               .onClick(() => this.profile.authType = AUTH_PASSWORD)
-            Button('私钥')
+            Button(this.t('edit.privateKey'))
               .layoutWeight(1)
-              .backgroundColor(this.profile.authType === AUTH_PRIVATE_KEY ? '#0A84FF' : '#94A3B8')
+              .backgroundColor(this.profile.authType === AUTH_PRIVATE_KEY ? this.accentColor : this.textMuted())
               .margin({ left: 8 })
               .onClick(() => this.profile.authType = AUTH_PRIVATE_KEY)
           }
           .margin({ bottom: 10 })
 
           if (this.profile.authType === AUTH_PASSWORD) {
-            TextInput({ text: this.profile.password, placeholder: '密码（仅保留在本次运行内存）' })
+            TextInput({ text: this.profile.password, placeholder: this.t('edit.passwordPlaceholder') })
               .type(InputType.Password)
               .onChange((value: string) => this.profile.password = value)
               .margin({ bottom: 10 })
           } else {
-            Button(this.profile.privateKeyPath.length > 0 ? '重新导入私钥' : '从文件中导入私钥')
+            Button(this.profile.privateKeyPath.length > 0 ? this.t('edit.reimportKey') : this.t('edit.importKey'))
               .width('100%')
               .onClick(() => this.importPrivateKey())
               .margin({ bottom: 8 })
-            TextInput({ text: this.profile.privateKeyPath, placeholder: '尚未导入私钥' })
+            TextInput({ text: this.profile.privateKeyPath, placeholder: this.t('edit.noKey') })
               .enabled(false)
               .margin({ bottom: 10 })
             if (this.profile.privateKeyPath.length > 0) {
-              Button('删除已导入私钥')
+              Button(this.t('edit.deleteKey'))
                 .width('100%')
                 .onClick(() => this.clearPrivateKey())
                 .margin({ bottom: 8 })
@@ -200,17 +237,17 @@ struct ConnectionEditPage {
             if (this.privateKeyStatus.length > 0) {
               Text(this.privateKeyStatus)
                 .fontSize(12)
-                .fontColor('#94A3B8')
+                .fontColor(this.textMuted())
                 .width('100%')
                 .margin({ bottom: 8 })
             }
-            TextInput({ text: this.profile.privateKeyPassphrase, placeholder: '私钥口令（仅保留在本次运行内存）' })
+            TextInput({ text: this.profile.privateKeyPassphrase, placeholder: this.t('edit.passphrasePlaceholder') })
               .type(InputType.Password)
               .onChange((value: string) => this.profile.privateKeyPassphrase = value)
               .margin({ bottom: 10 })
           }
 
-          Text('凭据不会写入源码、日志或普通持久化存储；应用重启后需重新输入。')
+          Text(this.t('edit.credentialHint'))
             .fontSize(12)
             .fontColor('#F59E0B')
             .width('100%')
@@ -218,34 +255,34 @@ struct ConnectionEditPage {
 
           if (this.profile.hostKeyFingerprint.length > 0) {
             Column() {
-              Text('已信任 HostKey')
+              Text(this.t('edit.trustedHostKey'))
                 .fontSize(13)
-                .fontColor('#94A3B8')
+                .fontColor(this.textMuted())
                 .width('100%')
               Text(this.profile.hostKeyFingerprint)
                 .fontSize(12)
                 .fontColor('#38BDF8')
                 .width('100%')
                 .margin({ top: 4, bottom: 6 })
-              Button('清除信任，下次重新核对')
+              Button(this.t('edit.clearTrust'))
                 .onClick(() => this.profile.hostKeyFingerprint = '')
             }
             .width('100%')
             .margin({ bottom: 10 })
           }
 
-          TextInput({ text: this.profile.terminalType, placeholder: '终端类型，例如 xterm-256color' })
+          TextInput({ text: this.profile.terminalType, placeholder: this.t('edit.terminalTypePlaceholder') })
             .onChange((value: string) => this.profile.terminalType = value)
             .margin({ bottom: 10 })
-          TextInput({ text: this.profile.postConnectScript, placeholder: '连接后脚本，可选' })
+          TextInput({ text: this.profile.postConnectScript, placeholder: this.t('edit.scriptPlaceholder') })
             .onChange((value: string) => this.profile.postConnectScript = value)
             .margin({ bottom: 10 })
-          TextInput({ text: this.profile.timeoutMilliseconds.toString(), placeholder: '连接超时（毫秒）' })
+          TextInput({ text: this.profile.timeoutMilliseconds.toString(), placeholder: this.t('edit.timeoutPlaceholder') })
             .type(InputType.Number)
             .onChange((value: string) => this.profile.timeoutMilliseconds = Number(value))
             .margin({ bottom: 10 })
 
-          Button('保存')
+          Button(this.t('common.save'))
             .width('100%')
             .height(44)
             .onClick(() => this.save())
@@ -256,6 +293,7 @@ struct ConnectionEditPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#0B1020')
+    .padding({ top: this.avoidStatusBarHeight, bottom: this.avoidNavigationBarHeight })
+    .backgroundColor(this.pageBg())
   }
 }

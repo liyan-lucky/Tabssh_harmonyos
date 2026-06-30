@@ -2,13 +2,25 @@
 
 - `AppScope/`：Bundle、版本和应用资源。
 - `entry/src/main/ets/pages/`：ArkUI 页面集合。
-- `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接内存分组选择器，可把主机关联到分组，凭据仍只保留运行内存。
-- `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，当前使用内存仓库，支持新建、改名、换色、上移/下移、折叠和空分组处理，页面已注册路由但首页入口仍待接入。
-- `entry/src/main/resources/base/profile/main_pages.json`：页面路由清单；已注册 `pages/ConnectionGroupPage`。
-- `entry/src/main/ets/common/`：模型、Native 包装、会话管理和内存仓库。
+- `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接分组选择器和全屏避让，可把主机关联到分组，凭据仍只保留运行内存。
+- `entry/src/main/ets/entryability/EntryAbility.ets`：Stage 入口；初始化 RDB-backed 仓库，开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入 `AppStorage`。
+- `entry/src/main/ets/pages/Index.ets`：首页/工作台/连接/监控/设置主页面；连接页已接搜索、命中高亮、收藏、排序、分组筛选、批量操作和 `ConnectionGroupPage` 管理入口，工作台主机列表来自 RDB-backed 仓库，设置 Tab 已直接展开主题/语言、文件、缓存、终端、工具和关于分组，并读取全屏避让区 padding。
+- `entry/src/main/ets/pages/ToolboxPage.ets`：工具箱页；工作台右上角和“设置 / 工具 / 工具箱”入口均进入该页，使用已登记 ProIcons 资源展示网络、系统、开发工具分类、搜索和本机信息卡；首批纯 ArkTS / 纯 HarmonyOS 工具已支持 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、访问审计跳转、默认网络/DNS/网关摘要、TCP 连通性、端口扫描、HTTP 下载样本测速、Nginx 配置摘要和 QR 负载摘要。
+- `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，使用 RDB-backed 仓库，支持新建、改名、换色、上移/下移、折叠和空分组处理，页面已注册路由并已从首页工作台/连接页接入，仍待完整设备点击和跨重启验证。
+- `entry/src/main/ets/pages/AuditLogPage.ets`：访问日志页；使用 RDB-backed 摘要日志，展示连接认证结果、批量操作和分组变更，不展示命令输出或凭据；支持 summary-only JSON 导出并唤起系统保存选择器，已从首页工作台入口接入，并随页面根容器接入全屏避让。
+- `entry/src/main/ets/pages/ConnectionHistoryPage.ets`：连接历史页；对齐 Android `ConnectionHistoryActivity` 的只读历史视图，基于 RDB profile 统计字段展示历史主机、成功主机、失败记录和最近连接摘要。
+- `entry/src/main/ets/pages/ConnectionImportExportPage.ets`：连接导入导出页；对齐 Android `ImportExportActivity` 的安全核心路径，支持 OpenSSH config 和脱敏 JSON 连接备份导入/导出，使用系统文件选择器并接入全屏避让。
+- `entry/src/main/resources/base/profile/main_pages.json`：页面路由清单；已注册 `pages/ConnectionGroupPage`、`pages/AuditLogPage`、`pages/ConnectionHistoryPage`、`pages/ConnectionImportExportPage` 与 `pages/ToolboxPage`。
+- `entry/src/main/ets/common/`：模型、Native 包装、会话管理和 RDB-backed 仓库。
+- `entry/src/main/ets/common/AppSettings.ets`：应用级主题和语言偏好；用 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面即时刷新。
+- `entry/src/main/ets/common/AppTheme.ets`：浅色/深色主题色板，供首页、顶部半透明渐变、底部半透明 Thin blur 胶囊、设置页、工具箱页、连接编辑、终端、SFTP、端口转发和已迁移二级页使用。
+- `entry/src/main/ets/common/I18n.ets`：中英双语翻译表；当前覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组和连接导入导出页。
+- `entry/src/main/ets/common/BuildInfo.ets`：构建时生成的版本号、版本码和构建时间常量；关于页展示这些信息。
 - `entry/src/main/ets/common/models/ConnectionProfile.ets`：连接配置模型；已扩展 Android 常见字段，但字段骨架不等于功能完成。
-- `entry/src/main/ets/common/models/ConnectionGroup.ets`：连接分组、搜索过滤和排序模式模型；当前只供内存仓库使用，未接 RDB。
-- `entry/src/main/ets/common/storage/ProfileRepository.ets`：内存连接仓库；支持默认分组、过滤、排序和连接统计字段，仍不是持久化数据库。
+- `entry/src/main/ets/common/models/ConnectionGroup.ets`：连接分组、搜索过滤和排序模式模型，包含分组规范化逻辑。
+- `entry/src/main/ets/common/models/ConnectionAuditLog.ets`：本地访问日志摘要模型；对齐 Android audit log 的基础事件类型，但不承载命令输出、密码或私钥口令。
+- `entry/src/main/ets/common/services/ConnectionImportExportService.ets`：连接导入导出服务；生成/解析 OpenSSH config 和脱敏 JSON 连接备份，导出前清空密码、私钥文件路径和私钥口令。
+- `entry/src/main/ets/common/storage/ProfileRepository.ets`：RDB-backed 连接仓库；启动时初始化 `relationalStore`，保存分组、主机配置、收藏、排序、HostKey 元数据、连接统计和访问日志摘要，写入前清空密码与私钥口令；导入连接时非覆盖合并并按主机/端口/用户去重。
 - `entry/src/main/ets/common/IconUtils.ets`：ProIcons stroke/fill SVG 的统一主题着色器。
 - `entry/src/main/resources/rawfile/*.svg`：经 `docs/PROICONS_ICONS.md` 登记的 ProIcons UI 资产。
 - `entry/src/main/cpp/`：N-API、Mock Core 与 libssh2 实现入口。
@@ -22,10 +34,11 @@
 - `docs/PROICONS_ICONS.md`：图标唯一来源、资源映射与审计规则。
 - `scripts/`：stage、构建、审计、清理、备份、安装冒烟和本地检查；输出必须进入 `99_Temp`。
 - `scripts/run_local_checks.ps1`：拉取后的一键本地检查入口，串联静态审计、终端解析器测试、Mock 构建/验包和可选真实 HAP 流程。
-- `scripts/audit_connection_groups.ps1`：连接分组专项静态审计；检查分组页面、编辑页分组选择、路由、仓库接口、改名、换色、排序、折叠和文档同步。
-- `scripts/install_and_smoke.ps1`：HAP 安装与冷启动冒烟工具；采集 bundle/PID/hilog/faultlogger 线索，只证明安装启动，不证明 SSH 功能。
+- `scripts/audit_connection_groups.ps1`：连接分组专项静态审计；检查分组页面、编辑页分组选择、路由、RDB-backed 仓库接口、改名、换色、排序、折叠和文档同步。
+- `scripts/update_build_info.ps1`：构建前刷新 `BuildInfo.ets`，从 `AppScope/app.json5` 读取版本并写入当前构建时间。
+- `scripts/install_and_smoke.ps1`：HAP 安装与冷启动冒烟工具；采集 bundle/PID/hilog/faultlogger/BuildInfo 线索，只证明安装启动和版本信息可读，不证明 SSH 功能。
 - `scripts/test_terminal_emulator.ps1`：不落盘产物的终端解析器内存回归。
-- `.github/workflows/online-build.yml`：托管 runner 静态审计，以及受控 `tabssh-deveco` runner 的手动真实 HAP 构建。
+- `.github/workflows/online-build.yml`：纯 GitHub `ubuntu-latest` 手动最小 HAP 格式构建入口，只验证 unsigned HAP zip 格式与双 ABI `libentry.so`。
 - `reports/`：可提交的无敏感信息审计摘要。
 
 `FILE_LIST.txt` 属于易过期的手工快照，不再使用；以后以 Git 文件树和本文为准。每轮新增或删除文件后必须同步更新本文，避免文件职责和仓库实际状态脱节。

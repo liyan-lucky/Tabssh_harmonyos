@@ -47,5 +47,19 @@ export function createConnectionGroup(name: string, colorTag: string = '#38BDF8'
 }
 
 export function cloneGroup(group: ConnectionGroup): ConnectionGroup {
-  return JSON.parse(JSON.stringify(group)) as ConnectionGroup;
+  return normalizeConnectionGroup(JSON.parse(JSON.stringify(group)) as ConnectionGroup);
+}
+
+export function normalizeConnectionGroup(group: ConnectionGroup): ConnectionGroup {
+  const fallback: ConnectionGroup = createConnectionGroup('默认分组');
+  fallback.id = 'group-default';
+  return {
+    id: group.id.length > 0 ? group.id : fallback.id,
+    name: group.name.length > 0 ? group.name : fallback.name,
+    colorTag: group.colorTag.length > 0 ? group.colorTag : fallback.colorTag,
+    sortOrder: group.sortOrder,
+    collapsed: group.collapsed,
+    createdAt: group.createdAt > 0 ? group.createdAt : fallback.createdAt,
+    modifiedAt: group.modifiedAt > 0 ? group.modifiedAt : fallback.modifiedAt
+  };
 }
