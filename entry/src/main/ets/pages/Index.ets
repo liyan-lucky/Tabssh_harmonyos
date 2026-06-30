@@ -192,11 +192,11 @@ struct Index {
   }
 
   private headerOverlayHeight(): number {
-    return this.headerStatusInset() + 48;
+    return this.headerStatusInset() + 96;
   }
 
   private contentTopInset(): number {
-    return Math.max(32, this.headerOverlayHeight() - 40);
+    return Math.max(80, this.headerOverlayHeight() - 40);
   }
 
   private headerStatusInset(): number {
@@ -479,7 +479,7 @@ struct Index {
           .colorFilter(createIconColorFilter(this.textSecond()))
       }
       .width('100%')
-      .height(46)
+      .height(92)
       .padding({ left: 22, right: 22, top: 0 })
     } else {
       Row() {
@@ -520,7 +520,7 @@ struct Index {
         .layoutWeight(1)
       }
       .width('100%')
-      .height(40)
+      .height(80)
       .padding({ left: 22, right: 22, top: 0 })
     }
   }

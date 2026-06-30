@@ -1,6 +1,6 @@
 # 当前构建测试就绪说明
 
-> 更新时间：2026-06-30。本文记录当前 `main` 是否已经可以进入本地/线上构建测试，以及构建后应该优先验证什么。
+> 更新时间：2026-07-01。本文记录当前 `main` 是否已经可以进入本地/线上构建测试，以及构建后应该优先验证什么。
 
 ## 当前判断
 
@@ -151,6 +151,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 2026-06-30 22:00 最新本地基线已推进到 Real HAP SHA256 `F9A480A234589F180410976636DCB88B91E11CE2F0F1226CC3A2FD9090947585`。本轮继续压缩首页顶部和 Logo 区默认距离，同时保留最小状态栏避让：`HeaderOverlay` 为 `headerStatusInset() + 48`，状态栏占位为 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(32, headerOverlayHeight() - 40)`，普通 Header 行高 40、监控 Header 行高 46；并修复 Nginx 单行样例解析。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 119/119；x86_64 模拟器安装冷启动 PID `10457`，首页层级 `layout_20260630_220033_home_header_safe_flush.json` 显示首个主机卡片 bounds `[53,161][1267,714]`，“主机列表”文本 bounds `[102,210][354,284]`；工具箱 `layout_20260630_214125_toolbox_nginx_inline_result.json` 显示 `listen/server_name/location/proxy_pass` 已从默认 Nginx 样例中解析出来，`layout_20260630_214125_toolbox_qr_payload_result.json` 显示 QR 负载摘要可输出。
 
 2026-06-30 22:30 最新本地基线已推进到 Real HAP SHA256 `7947F63EB123D386BB4B5D858B6A5D9C3F348020E1B38F7D73DF2A514F3C4DB1`。本轮继续补工具箱：上传测速使用纯 HarmonyOS `@ohos.net.http` POST 64 KiB 文本样本；Nginx 摘要新增同输入变量展开、include 检出和 upstream server；二维码工具新增纯 ArkTS QR Version 2-L Byte 矩阵；IP 详情源码新增路由和地址族字段。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123；x86_64 模拟器安装冷启动 PID `30385`。设备证据 `layout_20260630_223018_toolbox_upload_result.json` 显示上传字节 `65536`、耗时 `2967 ms` 和吞吐 `177 kbps`；`layout_20260630_223018_toolbox_nginx_expanded_result.json` 显示 `$target -> http://app`、`include: conf.d/*.conf` 和 `upstream server`；`layout_20260630_223018_toolbox_qr_matrix_result.json` / `screenshot_20260630_223018_toolbox_qr_matrix_result.jpeg` 显示 `Version 2-L Byte, 25x25` QR 矩阵。
+
+2026-07-01 03:29 本地基线曾恢复首页顶部和 Logo 区的稳定避让：`HeaderOverlay` 为 `headerStatusInset() + 48`，状态栏占位为 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(32, headerOverlayHeight() - 40)`。该轮 Real HAP SHA256 为 `E3C30833F5E4DAF546EBFB214C11E70003831F0E17463A0177E72967F8C877FE`，首页默认首屏层级 `layout_20260701_032859_home_header_default_restored.json` 显示 Logo/标题与状态栏保持避让。
+
+2026-07-01 03:36 最新本地基线已推进到 Real HAP SHA256 `BA4AB59EC193C02F77B00EBF143882F7D560DE740C8C30406A54327C4E674145`。本轮按在线反馈在稳定避让基础上把首页顶部 Logo/标题区加高一倍：`HeaderOverlay` 为 `headerStatusInset() + 96`，状态栏占位为 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(80, headerOverlayHeight() - 40)`，普通 Header 行高 80、监控 Header 行高 92。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123；x86_64 模拟器安装冷启动 PID `7726`，首页默认首屏层级 `layout_20260701_033648_home_header_double_height.json` 显示标题 bounds `[596,179][827,269]`，右上工具箱 bounds `[1167,186][1244,263]`，首个主机卡片 bounds `[53,329][1267,882]`。
 
 ## 当前不能判定完成
 

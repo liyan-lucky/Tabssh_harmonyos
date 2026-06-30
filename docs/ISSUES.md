@@ -68,7 +68,7 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 ## P1：全屏避让仍缺多设备矩阵
 
-2026-06-29 `EntryAbility` 已开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入页面 padding。所有已注册 ArkUI 页面已接入 `avoidStatusBarHeight` / `avoidNavigationBarHeight`，`audit_project.ps1` 也会逐页检查；最新 Real HAP 已抽样验证首页、设置 Tab、设置页、工具箱、终端设置、关于、连接页、连接编辑、SFTP 和端口转发页面。2026-06-30 底部 Tab 胶囊导航已修复主题色不随模式变化和位置过低的问题；顶部 Logo/标题区按 RustDesk HarmonyOS 文档改为半透明渐变过渡，并把 `contentTopInset()` 与 `headerOverlayHeight()` 分离，避免标题区压住第一张卡片；同日继续把 `HeaderOverlay` 收紧到 `headerStatusInset() + 48`，状态栏占位保留 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(32, headerOverlayHeight() - 40)`，首页首个主机卡片已上移到 y=161 且未压住状态栏、Logo 或标题。此前空白 overlay 阻断设置 Tab 滚动的问题已修复。但还没有横竖屏、不同导航模式、挖孔设备、Terminal 真实长会话、SFTP 长列表底部滚动和软键盘场景的矩阵证据。经验总结：顶部不能用整块高不透明毛玻璃，也不能让内容起点和标题控件争同一块空间；单一模拟器多页可见不等于全屏布局完成。
+2026-06-29 `EntryAbility` 已开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入页面 padding。所有已注册 ArkUI 页面已接入 `avoidStatusBarHeight` / `avoidNavigationBarHeight`，`audit_project.ps1` 也会逐页检查；最新 Real HAP 已抽样验证首页、设置 Tab、设置页、工具箱、终端设置、关于、连接页、连接编辑、SFTP 和端口转发页面。2026-06-30 底部 Tab 胶囊导航已修复主题色不随模式变化和位置过低的问题；顶部 Logo/标题区按 RustDesk HarmonyOS 文档改为半透明渐变过渡，并把 `contentTopInset()` 与 `headerOverlayHeight()` 分离，避免标题区压住第一张卡片；2026-07-01 确认滚动后的贴边状态不能作为默认首屏依据，过度压缩会让 Logo/标题区与状态栏过近，随后按反馈把稳定避让后的 Logo/标题区加高一倍：`HeaderOverlay = headerStatusInset() + 96`、状态栏占位 `Math.max(24, avoidStatusBarHeight - 18)`、内容顶部 `Math.max(80, headerOverlayHeight() - 40)`，首页默认首屏标题下移到 y=179，首个主机卡片下移到 y=329。此前空白 overlay 阻断设置 Tab 滚动的问题已修复。但还没有横竖屏、不同导航模式、挖孔设备、Terminal 真实长会话、SFTP 长列表底部滚动和软键盘场景的矩阵证据。经验总结：顶部不能用整块高不透明毛玻璃，也不能把滚动后的位置当作默认首屏基线；单一模拟器多页可见不等于全屏布局完成。
 
 ## P1：连接分组页仍缺完整设备点击验证
 
