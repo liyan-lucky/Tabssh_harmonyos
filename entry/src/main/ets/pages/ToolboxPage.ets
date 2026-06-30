@@ -1013,7 +1013,8 @@ struct ToolboxPage {
   }
 
   private analyzeNginxConfig(): void {
-    const lines: string[] = this.toolInput.split(/\r\n|\r|\n/);
+    const normalized: string = this.toolInput.replace(/\{/g, '{\n').replace(/;/g, ';\n');
+    const lines: string[] = normalized.split(/\r\n|\r|\n/);
     let serverCount: number = 0;
     const listens: string[] = [];
     const serverNames: string[] = [];
