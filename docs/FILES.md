@@ -4,8 +4,8 @@
 - `entry/src/main/ets/pages/`：ArkUI 页面集合。
 - `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接分组选择器和全屏避让，可把主机关联到分组，凭据仍只保留运行内存。
 - `entry/src/main/ets/entryability/EntryAbility.ets`：Stage 入口；初始化 RDB-backed 仓库，开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入 `AppStorage`。
-- `entry/src/main/ets/pages/Index.ets`：首页/工作台/连接/监控/设置主页面；连接页已接搜索、命中高亮、收藏、排序、分组筛选、批量操作和 `ConnectionGroupPage` 管理入口，工作台主机列表来自 RDB-backed 仓库，设置 Tab 已直接展开主题/语言、文件、缓存、终端、工具和关于分组，并读取全屏避让区 padding；顶部 Logo/标题区使用半透明紧凑渐变和 `headerStatusInset()` 贴近状态栏安全区。
-- `entry/src/main/ets/pages/ToolboxPage.ets`：工具箱页；工作台右上角和“设置 / 工具 / 工具箱”入口均进入该页，使用已登记 ProIcons 资源展示网络、系统、开发工具分类、搜索和本机信息卡；首批纯 ArkTS / 纯 HarmonyOS 工具已支持 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、公网 IP、受控子网发现、访问审计跳转、默认网络/DNS/网关/路由/地址族摘要、TCP 连通性、端口扫描、HTTP 下载/上传测速、Nginx 配置摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵。
+- `entry/src/main/ets/pages/Index.ets`：首页/工作台/连接/监控/设置主页面；连接页已接搜索、命中高亮、收藏、排序、分组筛选、批量操作和 `ConnectionGroupPage` 管理入口，并移除 logo 下方 SSH/二进制横幅；工作台主机列表来自 RDB-backed 仓库和 `profileRefreshToken` 刷新令牌，设置 Tab 已直接展开主题/语言、文件、缓存、终端、工具和关于分组，并读取全屏避让区 padding；顶部 Logo/标题区使用半透明紧凑渐变和 `headerStatusInset()` 贴近状态栏安全区。
+- `entry/src/main/ets/pages/ToolboxPage.ets`：工具箱页；工作台右上角和“设置 / 工具 / 工具箱”入口均进入该页，使用已登记 ProIcons 资源展示网络、系统、开发工具分类、搜索和本机信息卡；首批纯 ArkTS / 纯 HarmonyOS 工具已支持 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、公网 IP、受控子网发现、访问审计跳转、默认网络/DNS/网关/路由/地址族摘要、TCP 连通性、ICMP 等价验收、端口扫描、HTTP 下载/上传测速、Nginx 配置摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵。
 - `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，使用 RDB-backed 仓库，支持新建、改名、换色、上移/下移、折叠和空分组处理，页面已注册路由并已从首页工作台/连接页接入，仍待完整设备点击和跨重启验证。
 - `entry/src/main/ets/pages/AuditLogPage.ets`：访问日志页；使用 RDB-backed 摘要日志，展示连接认证结果、批量操作和分组变更，不展示命令输出或凭据；支持 summary-only JSON 导出并唤起系统保存选择器，已从首页工作台入口接入，并随页面根容器接入全屏避让。
 - `entry/src/main/ets/pages/ConnectionHistoryPage.ets`：连接历史页；对齐 Android `ConnectionHistoryActivity` 的只读历史视图，基于 RDB profile 统计字段展示历史主机、成功主机、失败记录和最近连接摘要。
@@ -20,7 +20,7 @@
 - `entry/src/main/ets/common/models/ConnectionGroup.ets`：连接分组、搜索过滤和排序模式模型，包含分组规范化逻辑。
 - `entry/src/main/ets/common/models/ConnectionAuditLog.ets`：本地访问日志摘要模型；对齐 Android audit log 的基础事件类型，但不承载命令输出、密码或私钥口令。
 - `entry/src/main/ets/common/services/ConnectionImportExportService.ets`：连接导入导出服务；生成/解析 OpenSSH config 和脱敏 JSON 连接备份，导出前清空密码、私钥文件路径和私钥口令。
-- `entry/src/main/ets/common/storage/ProfileRepository.ets`：RDB-backed 连接仓库；启动时初始化 `relationalStore`，保存分组、主机配置、收藏、排序、HostKey 元数据、连接统计和访问日志摘要，写入前清空密码与私钥口令；导入连接时非覆盖合并并按主机/端口/用户去重。
+- `entry/src/main/ets/common/storage/ProfileRepository.ets`：RDB-backed 连接仓库；启动时初始化 `relationalStore`，保存分组、主机配置、收藏、排序、HostKey 元数据、连接统计和访问日志摘要，写入前清空密码与私钥口令；导入连接时非覆盖合并并按主机/端口/用户去重；资料变更后更新 `profileRefreshToken` 供首页列表即时刷新。
 - `entry/src/main/ets/common/IconUtils.ets`：ProIcons stroke/fill SVG 的统一主题着色器。
 - `entry/src/main/resources/rawfile/*.svg`：经 `docs/PROICONS_ICONS.md` 登记的 ProIcons UI 资产。
 - `entry/src/main/cpp/`：N-API、Mock Core 与 libssh2 实现入口。

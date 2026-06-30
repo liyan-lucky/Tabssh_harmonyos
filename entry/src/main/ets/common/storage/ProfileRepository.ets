@@ -48,6 +48,7 @@ class MemoryProfileRepository {
   private store: relationalStore.RdbStore | undefined = undefined;
   private persistent: boolean = false;
   private initialized: boolean = false;
+  private profileRefreshToken: number = 0;
 
   constructor() {
     this.seedDefaults();
@@ -173,6 +174,7 @@ class MemoryProfileRepository {
       this.profiles.push(cloneProfile(profile));
     }
     this.persistProfile(profile);
+    this.notifyProfilesChanged();
   }
 
   saveGroup(group: ConnectionGroup): void {
@@ -184,11 +186,13 @@ class MemoryProfileRepository {
       this.groups.push(cloneGroup(group));
     }
     this.persistGroup(group);
+    this.notifyProfilesChanged();
   }
 
   remove(id: string): void {
     this.profiles = this.profiles.filter((item: ConnectionProfile) => item.id !== id);
     this.deleteProfile(id);
+    this.notifyProfilesChanged();
   }
 
   removeGroup(id: string): void {
@@ -201,6 +205,7 @@ class MemoryProfileRepository {
     });
     this.deleteGroup(id);
     this.persistProfiles();
+    this.notifyProfilesChanged();
   }
 
   recordConnectSuccess(id: string): void {
@@ -212,6 +217,7 @@ class MemoryProfileRepository {
       found.modifiedAt = new Date().getTime();
       this.persistProfile(found);
       this.recordAuditLog(AUDIT_CONNECT_SUCCESS, 'success', found.id, found.name, 'SSH 认证成功');
+      this.notifyProfilesChanged();
     }
   }
 
@@ -222,6 +228,7 @@ class MemoryProfileRepository {
       found.modifiedAt = new Date().getTime();
       this.persistProfile(found);
       this.recordAuditLog(AUDIT_CONNECT_FAILURE, 'failure', found.id, found.name, this.sanitizeAuditMessage(message));
+      this.notifyProfilesChanged();
     }
   }
 
@@ -327,7 +334,16 @@ class MemoryProfileRepository {
         sourceLabel + ' 导入 ' + result.importedProfiles.toString() + ' 台主机，跳过 ' +
         result.skippedProfiles.toString() + ' 台，新增 ' + result.importedGroups.toString() + ' 个分组');
     }
+    if (result.importedProfiles > 0 || result.importedGroups > 0) {
+      this.notifyProfilesChanged();
+    }
     return result;
+  }
+
+  private notifyProfilesChanged(): void {
+    const nextToken: number = Math.max(new Date().getTime(), this.profileRefreshToken + 1);
+    this.profileRefreshToken = nextToken;
+    AppStorage.setOrCreate<number>('profileRefreshToken', nextToken);
   }
 
   private loadFromRdb(): void {

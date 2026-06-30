@@ -700,6 +700,40 @@ struct ToolboxPage {
     }
   }
 
+  private async runIcmpEquivalentTest(): Promise<void> {
+    if (this.networkInFlight) {
+      return;
+    }
+    this.networkInFlight = true;
+    this.toolOutput = this.t('toolbox.running');
+    try {
+      const endpoint: ParsedEndpoint = this.parseEndpoint(this.toolInput, [443]);
+      const hasDefaultNet: boolean = await connection.hasDefaultNet();
+      const defaultNet: connection.NetHandle = await connection.getDefaultNet();
+      const properties: connection.ConnectionProperties = await connection.getConnectionProperties(defaultNet);
+      const addresses: string[] = await this.resolveHost(endpoint.host);
+      const result: TcpProbeResult = await this.probeTcp(endpoint.host, endpoint.ports[0], 3000);
+      const lines: string[] = [
+        this.t('toolbox.icmpEquivalentTitle'),
+        this.t('toolbox.icmpEquivalentPolicy'),
+        this.t('toolbox.icmpEquivalentPath'),
+        this.t('toolbox.defaultNet') + (hasDefaultNet ? this.t('common.enabled') : this.t('common.disabled')),
+        this.t('toolbox.interfaceName') + (properties.interfaceName.length > 0 ? properties.interfaceName : this.t('toolbox.none')),
+        'DNS: ' + addresses.join(', '),
+        'TCP ' + endpoint.host + ':' + endpoint.ports[0].toString() + ' -> ' +
+          (result.ok ? this.t('toolbox.tcpOpen') : this.t('toolbox.tcpClosed')) +
+          ' (' + result.elapsedMs.toString() + ' ms)',
+        this.t('toolbox.icmpEquivalentResult') +
+          (result.ok ? this.t('toolbox.icmpEquivalentReachable') : this.t('toolbox.icmpEquivalentLimited'))
+      ];
+      this.toolOutput = lines.join('\n');
+    } catch (error) {
+      this.toolOutput = this.t('toolbox.convertError') + this.errorMessage(error as Error);
+    } finally {
+      this.networkInFlight = false;
+    }
+  }
+
   private async runPortScan(): Promise<void> {
     if (this.networkInFlight) {
       return;
@@ -1751,6 +1785,7 @@ struct ToolboxPage {
               this.ActionButton(this.t('toolbox.analyze'), false, () => this.analyzeNginxConfig())
             } else if (this.activeToolKey === 'toolbox.ping') {
               this.ActionButton(this.t('toolbox.tcpProbe'), this.networkInFlight, () => this.runConnectivityTest())
+              this.ActionButton(this.t('toolbox.icmpEquivalent'), this.networkInFlight, () => this.runIcmpEquivalentTest())
             } else if (this.activeToolKey === 'toolbox.portScan') {
               this.ActionButton(this.t('toolbox.scan'), this.networkInFlight, () => this.runPortScan())
             } else if (this.activeToolKey === 'toolbox.qr') {

@@ -8,6 +8,7 @@ import { AppSettingsRepository, THEME_DARK } from '../common/AppSettings';
 export default class EntryAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     AppSettingsRepository.initialize(this.context);
+    AppStorage.setOrCreate<number>('profileRefreshToken', new Date().getTime());
     windowStage.getMainWindow()
       .then((mainWindow: window.Window) => this.configureMainWindow(mainWindow))
       .catch(() => {});

@@ -124,9 +124,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 首页工作台和连接页“导入导出”入口能打开 `ConnectionImportExportPage`。
 - 首页工作台右上角入口能打开 `ToolboxPage`，不再打开设置页。
 - 首页工作台主机列表直接显示已保存主机信息和连接按钮，不再通过动作切换到连接 Tab。
+- 新增/编辑/删除主机或真实连接统计变更后，工作台主机列表通过资料刷新令牌直接刷新，不需要手动切换 Tab。
 - “设置 / 工具 / 工具箱”入口能打开 `ToolboxPage`。
 - 第四个底部 Tab 为“设置”，且主题/语言、文件、缓存、终端、工具和关于分组直接展开；浅色/深色、中文/English 和系统语言跟随切换能即时刷新，并在重启后保持偏好。
 - 连接页“全部分组 / 分组名 / 管理分组”芯片能筛选或跳转。
+- 连接页顶部避让后直接进入“连接方式”，不再显示 logo 下方 SSH/二进制横幅。
 - 连接页搜索命中高亮和批量模式控件不会撑破筛选卡片或遮挡连接行。
 - 全屏窗口下顶部标题、滚动内容和底部胶囊导航不被状态栏、导航栏、手势区或挖孔遮挡。
 - TerminalPage、SftpPage、PortForwardPage、SettingsPage、TerminalSettingsPage、AboutPage 路由仍可打开。
@@ -156,6 +158,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-07-01 03:36 最新本地基线已推进到 Real HAP SHA256 `BA4AB59EC193C02F77B00EBF143882F7D560DE740C8C30406A54327C4E674145`。本轮按在线反馈在稳定避让基础上把首页顶部 Logo/标题区加高一倍：`HeaderOverlay` 为 `headerStatusInset() + 96`，状态栏占位为 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(80, headerOverlayHeight() - 40)`，普通 Header 行高 80、监控 Header 行高 92。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123；x86_64 模拟器安装冷启动 PID `7726`，首页默认首屏层级 `layout_20260701_033648_home_header_double_height.json` 显示标题 bounds `[596,179][827,269]`，右上工具箱 bounds `[1167,186][1244,263]`，首个主机卡片 bounds `[53,329][1267,882]`。
 
+2026-07-01 04:55 阶段基线推进到 Real HAP SHA256 `D23BEF0226A9B8EE4FDE519610C605C7ED61F16769245061A4B27193D1B480ED`。本轮移除连接页 logo 下方 SSH/二进制横幅，新增工具箱 ICMP 等价验收，使用普通应用可用的默认网络、DNS 解析和 TCP connect 作为应用层连通性证据；同时完成用户提供局域网测试主机的 x86_64 hdc SSH 验证：HostKey 确认、密码认证、PTY 打开、`whoami` 输出和连接次数回写均通过。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 124/124；覆盖安装冒烟通过 9/9，HAP 大小 `13,109,588` bytes，构建时间 `2026-07-01 03:55:03 +08:00`。设备证据包括 `screenshot_20260701_035805_connection_no_hero.jpeg`、`screenshot_20260701_044250_ssh_after_hostkey.jpeg`、`screenshot_20260701_044430_ssh_whoami.jpeg`、`screenshot_20260701_045050_app_home_after_forcestop.jpeg` 和 `screenshot_20260701_045540_toolbox_icmp_equivalent_result.jpeg`。当前 hdc 目标报告为 `x86_64` / `emulator`，不能替代 arm64 真机验收。
+
+2026-07-01 05:05 最新本地基线已重建为 Real HAP SHA256 `C402EFED7D6A137E8190A613DC0821E621F8464D20C7A59D0C117980E8FF2FC4`。本轮针对工作台新增/编辑/删除或连接统计变更后必须切换 Tab 才刷新的问题，新增 `profileRefreshToken` 写入通知和首页 `@StorageLink` / `@Watch` reload，并把刷新令牌改为单调递增以覆盖快速连续写入；连接页去横幅与工具箱 ICMP 等价验收同步保留。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 125/125；覆盖安装冒烟通过 9/9，HAP 大小 `13,113,342` bytes，构建时间 `2026-07-01 05:03:31 +08:00`。新增层级证据为 `layout_20260701_050500_home_after_refresh_token_monotonic.json` 和 `layout_20260701_050500_connection_no_hero_after_refresh_token_monotonic.json`；同日 SSH 实测仍以 x86_64 hdc 目标证据为准，不能替代 arm64 真机验收。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
@@ -164,7 +170,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 访问日志真实连接事件写入、清空、导出文件写入/回读和隐私字段审计证据；分组变更摘要基础跨重启、导出选择器唤起和筛选空状态已通过。
 - 连接历史真实成功/失败数据、点击行进入终端和跨重启统计回显。
 - 连接导入导出真实文件写入/回读、真实 OpenSSH/JSON 样本导入落库、跨重启回显、加密 ZIP、QR 配对和冲突合并。
-- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、Nginx 摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵已有 Real HAP 输出；特权 ICMP 或等价验收说明、二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开仍未完成。
+- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、ICMP 等价验收、Nginx 摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵已有 Real HAP 输出；二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开仍未完成。
 - 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已完成设置 Tab 点击和强停重启回显；仍需多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
 - 全屏避让的横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵；单台 x86_64 模拟器多页抽样已通过。
 - 非空分组迁移和拖拽排序。

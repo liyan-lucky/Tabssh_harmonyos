@@ -34,10 +34,11 @@
 - 2026-06-30 继续补齐工具箱剩余能力：网络测速新增纯 HarmonyOS HTTP POST 上传测速，Nginx 摘要新增同输入 `set` 变量展开、`include` 检出和 upstream server，二维码工具新增纯 ArkTS QR Version 2-L Byte 矩阵，IP 详情源码新增路由和地址族字段。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123，Real HAP 大小 `13,106,528` bytes、SHA256 `7947F63EB123D386BB4B5D858B6A5D9C3F348020E1B38F7D73DF2A514F3C4DB1`；安装冷启动 PID `30385`，工具箱 `layout_20260630_223018_toolbox_upload_result.json` 显示 HTTP POST 上传 `65536` 字节、耗时 `2967 ms`、吞吐 `177 kbps`，`layout_20260630_223018_toolbox_nginx_expanded_result.json` 显示 `$target -> http://app`、`include: conf.d/*.conf` 和 upstream server，`layout_20260630_223018_toolbox_qr_matrix_result.json` / `screenshot_20260630_223018_toolbox_qr_matrix_result.jpeg` 显示 `Version 2-L Byte, 25x25` QR 矩阵。
 - 2026-07-01 复核顶部间距反馈后恢复默认首屏安全避让：继续压缩到 `headerStatusInset() + 44` 会让 Logo/标题区域与状态栏过近，滚动后的贴边状态不能作为默认首屏依据；当前恢复为 `HeaderOverlay = headerStatusInset() + 48`、状态栏占位 `Math.max(24, avoidStatusBarHeight - 18)`、内容顶部 `Math.max(32, headerOverlayHeight() - 40)`、普通 Header 行高 40、监控 Header 行高 46。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123，Real HAP 大小 `13,106,528` bytes、SHA256 `E3C30833F5E4DAF546EBFB214C11E70003831F0E17463A0177E72967F8C877FE`；安装冷启动 PID `1993`，首页默认首屏层级 `layout_20260701_032859_home_header_default_restored.json` 显示首个主机卡片 bounds `[53,161][1267,714]`，“主机列表”文本 bounds `[102,210][354,284]`，Logo/标题与状态栏保持避让。
 - 2026-07-01 按在线反馈把首页顶部 Logo/标题区在稳定避让基础上加高一倍：`HeaderOverlay` 改为 `headerStatusInset() + 96`，状态栏占位仍为 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(80, headerOverlayHeight() - 40)`，普通 Header 行高 80、监控 Header 行高 92。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123，Real HAP 大小 `13,106,528` bytes、SHA256 `BA4AB59EC193C02F77B00EBF143882F7D560DE740C8C30406A54327C4E674145`；安装冷启动 PID `7726`，首页默认首屏层级 `layout_20260701_033648_home_header_double_height.json` 显示标题 bounds `[596,179][827,269]`，右上工具箱 bounds `[1167,186][1244,263]`，首个主机卡片 bounds `[53,329][1267,882]`。
+- 2026-07-01 继续按在线反馈移除连接页 logo 下方 SSH/二进制横幅，连接页现在直接从全屏顶部避让过渡到“连接方式”；同时为工作台主机列表补 `profileRefreshToken` 刷新令牌，仓库保存、删除、分组、导入和真实连接统计变更后会通知首页重新加载，刷新令牌使用单调递增值，避免新增或连接成功后必须手动切 Tab 才刷新。工具箱连通性测试新增“等价验收”按钮：普通 HarmonyOS 应用不使用特权 ICMP raw socket，当前以“默认网络 -> DNS 解析 -> TCP connect”作为应用层连通性等价证据。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，摘要为 `summary_20260701_050216.md`，全局审计 125/125，Real HAP 大小 `13,113,342` bytes、SHA256 `C402EFED7D6A137E8190A613DC0821E621F8464D20C7A59D0C117980E8FF2FC4`，构建时间 `2026-07-01 05:03:31 +08:00`；安装冒烟 9/9，摘要为 `summary_20260701_050459.md`。最新刷新修复层级证据包括 `layout_20260701_050500_home_after_refresh_token_monotonic.json` 和 `layout_20260701_050500_connection_no_hero_after_refresh_token_monotonic.json`；同日 x86_64 hdc SSH 验证证据包括 `screenshot_20260701_044250_ssh_after_hostkey.jpeg`、`screenshot_20260701_044430_ssh_whoami.jpeg` 和 `screenshot_20260701_045050_app_home_after_forcestop.jpeg`，工具箱 ICMP 等价证据为 `screenshot_20260701_045540_toolbox_icmp_equivalent_result.jpeg`。本轮 hdc 目标报告为 `x86_64` / `emulator`，已对用户提供的局域网测试主机完成 HostKey 确认、密码认证、PTY 打开和命令输出验证，但仍不能替代 arm64 真机验收。
 - 旧 `.github/workflows/online-build.yml` 4-package 格式验证入口已由远端提交移除。当前线上保留 `test-harmonyos-sdk-token.yml` 预检私有 SDK Token、`build-harmonyos.yml` 手动 HAP 构建/可选 Release、`cleanup-releases.yml` 明确维护清理；`build-harmonyos.yml` 使用项目 SDK patch 脚本构建、刷新 BuildInfo、上传 HAP/SHA256/包清单。上述 workflow 仍缺本仓库线上成功 run 证据。
 - `scripts/run_local_checks.ps1` 已作为本地拉取后一键检查入口：默认串联 `git diff --check`、全局静态审计、连接分组专项审计、终端解析器测试、Mock 构建和验包；可选 `-WithRealCore` 与 `-BuildDependencies` 执行真实 HAP 与三方依赖路径。
 - `scripts/install_and_smoke.ps1` 已作为安装/冷启动冒烟入口：安装 `99_Temp` 中的 HAP、启动 `com.open.tabssh`、采集 bundle/PID/hilog/faultlogger 线索，并输出无凭据摘要；该脚本只做安装启动检查，不标记 SSH 功能完成。
-- `scripts/audit_project.ps1` 已增加连接分组、RDB、访问日志、访问日志导出/筛选、连接历史、连接导入导出、搜索高亮、批量操作、全屏避让、工具箱入口、工具箱首批纯工具能力、工具箱网络工具能力、公网 IP、受控子网发现、上传测速、QR 矩阵、Nginx 单行配置/变量/include 解析、默认网络路由/地址族、工作台内联主机列表、主题/语言偏好、系统语言跟随、主题色板、中英翻译主页面覆盖、顶部/底部玻璃层和顶部紧凑间距审计项；`scripts/audit_connection_groups.ps1` 已增加专项审计，并接入一键检查，覆盖分组页面、路由、首页入口/分组筛选、RDB-backed 仓库接口、改名、换色、排序、折叠和文档同步。旧 4-package workflow 移除后，2026-06-30 最新本地检查已通过全局审计 123/123、连接分组专项审计、终端解析器、Mock HAP 和 Real HAP 验包。
+- `scripts/audit_project.ps1` 已增加连接分组、RDB、访问日志、访问日志导出/筛选、连接历史、连接导入导出、搜索高亮、批量操作、全屏避让、工具箱入口、工具箱首批纯工具能力、工具箱网络工具能力、公网 IP、受控子网发现、上传测速、QR 矩阵、Nginx 单行配置/变量/include 解析、默认网络路由/地址族、工具箱 ICMP 等价验收、工作台内联主机列表、工作台资料刷新令牌、主题/语言偏好、系统语言跟随、主题色板、中英翻译主页面覆盖、顶部/底部玻璃层和顶部紧凑间距审计项；`scripts/audit_connection_groups.ps1` 已增加专项审计，并接入一键检查，覆盖分组页面、路由、首页入口/分组筛选、RDB-backed 仓库接口、改名、换色、排序、折叠和文档同步。旧 4-package workflow 移除后，2026-07-01 最新本地检查已通过全局审计 125/125、连接分组专项审计、终端解析器、Mock HAP 和 Real HAP 验包。
 
 ## 已编码、待真实构建与端到端验证
 
@@ -55,7 +56,7 @@
 - 会话管理已把认证成功写入统计 `lastConnectedAt/connectionCount`，把认证失败、HostKey 确认失败、异常中断和重连异常写入 `lastErrorMessage`；这些字段已接 RDB 持久化路径，但仍缺真实连接后重启回显证据。
 - 私钥通过系统文档选择器复制到应用私有 `filesDir/ssh_keys`，不记录原文件 URI 或内容，并提供应用内删除入口；真实包已在 x86_64 模拟器覆盖安装，端到端认证待验。
 - 连接导入导出已编码并通过 HAP 编译、Real HAP 安装和 picker 唤起验证；真实导出文件内容回读、真实 OpenSSH/JSON 样本导入落库、导入后跨重启回显、加密备份和 QR 配对仍未完成。
-- 工具箱页已注册并能从工作台右上角与“设置 / 工具 / 工具箱”进入；页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、网络/系统/开发分类和工具卡片。首批纯 ArkTS/纯 HarmonyOS 工具已可用：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、访问审计跳转、默认网络/链路/DNS/网关/路由/地址族摘要、公网 IP、受控子网发现、TCP 连通性探测、端口扫描、HTTP 下载样本测速、HTTP POST 上传测速、Nginx 配置摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵；网络拓扑、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、Nginx 摘要/同输入变量展开/include 检出和 QR 矩阵已有 Real HAP 输出；仍未实现特权 ICMP 或完整等价验收说明、二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开。
+- 工具箱页已注册并能从工作台右上角与“设置 / 工具 / 工具箱”进入；页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、网络/系统/开发分类和工具卡片。首批纯 ArkTS/纯 HarmonyOS 工具已可用：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、访问审计跳转、默认网络/链路/DNS/网关/路由/地址族摘要、公网 IP、受控子网发现、TCP 连通性探测、ICMP 等价验收、端口扫描、HTTP 下载样本测速、HTTP POST 上传测速、Nginx 配置摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵；网络拓扑、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、ICMP 等价验收、Nginx 摘要/同输入变量展开/include 检出和 QR 矩阵已有 Real HAP 输出；仍未实现二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开。
 - 主题和双语偏好已编码并通过 preferences 持久化，当前覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；设置 Tab 已支持系统语言跟随并完成强停重启回显；仍需继续补更多 service/audit 动态文案、高对比/字体/无障碍和完整切换矩阵。
 - 模拟器已验证系统文档选择器 UI 可打开；同时发现并修复连接编辑返回后的列表刷新问题。
 - 首次真实连接发现同步 N-API 导致 `APP_INPUT_BLOCK`；`connect`、`openShell`、`sftpList` 已迁移为 async work / Promise 并完成 Mock/真实双架构构建，尚待安装回归。
@@ -71,18 +72,18 @@
 - 有界 2,000 行历史的 VT 单元格解析器已编码：常用光标/擦除/插删/滚动区、SGR 16/256/RGB 色、粗体/暗色/斜体/下划线/反色/隐藏/删除线、备用屏、OSC 标题、DSR/DA 回复、application cursor、bracketed paste、组合字符和 CJK/Emoji 双宽字符；TerminalPage 已接入样式 `Span`、复制、横向控制键、视口驱动的 PTY resize、主题色和中英双语。独立内存测试与最新 HAP 构建通过，但复杂 TUI/性能设备回归仍不能称完整 xterm。
 - 启动、导航、页面入口、文件类型、返回/刷新和方向键图标已统一为 `docs/PROICONS_ICONS.md` 登记的 ProIcons SVG；源码不再使用 Emoji/Unicode 字符充当图标。后续新增/替换图标必须从 ProIcons 官网或已登记 ProIcons 提取记录获取，优先彩色配色资产。
 
-以上 SSH 密码认证、PTY/命令与 SFTP 列目已有真实外部服务器证据；SFTP 写操作已有隔离回环端证据。私钥认证、三类转发、大文件/中断恢复和 arm64 真机仍不能标记完成。
+以上 SSH 密码认证、PTY/命令与 SFTP 列目已有真实外部服务器证据；本轮默认 hdc x86_64 目标又完成用户提供局域网测试主机的 HostKey 确认、密码认证、PTY 打开、`whoami` 命令输出和连接次数回写；SFTP 写操作已有隔离回环端证据。私钥认证、三类转发、大文件/中断恢复和 arm64 真机仍不能标记完成。
 
 ## 未实现（发布阻塞）
 
-- 私钥认证、外部服务器与 arm64 真机端到端证据；HUKS/ASSET 安全存储。
+- 私钥认证、arm64 真机端到端证据；HUKS/ASSET 安全存储。
 - 连接管理仍未完成：基础新增分组和分组变更摘要已通过跨重启回显，连接历史空状态和连接导入导出 picker 入口已通过设备冒烟，但批量操作逐项点击、搜索高亮逐字段点击、真实连接日志回显、统计页真实数据、导入样本落库/导出回读、schema migration 和设备端完整筛选/分组点击证据仍待补；首页分组入口、分组筛选、批量/高亮源码、访问日志页、连接历史页、连接导入导出页和多页全屏避让已有 HAP/安装/UI hierarchy 抽样证据，但完整设备交互未完成。
-- 工具箱真实工具能力仍未完成：JSON、编码、文本、颜色、单位、系统/存储/IP 基础信息、访问审计跳转、默认网络摘要、公网 IP、受控子网发现、TCP 连通性测试、端口扫描、HTTP 下载/上传测速、Nginx 摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵已有首批纯 ArkTS/纯 HarmonyOS 能力；仍需补特权 ICMP 或等价验收说明、二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开。
+- 工具箱真实工具能力仍未完成：JSON、编码、文本、颜色、单位、系统/存储/IP 基础信息、访问审计跳转、默认网络摘要、公网 IP、受控子网发现、TCP 连通性测试、ICMP 等价验收、端口扫描、HTTP 下载/上传测速、Nginx 摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵已有首批纯 ArkTS/纯 HarmonyOS 能力；仍需补二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开。
 - 主题与多语言仍需完整验收：当前浅色/深色、中文/English 和系统语言跟随偏好已覆盖主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；系统语言选项已完成设置 Tab 点击和强停重启回显，仍缺字体/高对比/无障碍、更多动态 service/audit 文案和完整多页面切换矩阵。
 - 终端剩余兼容：完整键盘/IME 逐键输入、选择与搜索、鼠标协议、更多 DEC/xterm 边界、vim/tmux/htop/nano 和设备端性能/渲染回归。
 - SFTP 大文件、中断恢复、外部服务器写操作及系统文件保存选择器的稳定回归。
 - local/remote/dynamic forwarding 的真实 HAP 与逐字节流量链路证据；源码实现不能替代验收。
 - 代理/跳板机、多标签复用、后台保持。
 - 异步操作的用户取消、重连/错误恢复设备证据和更完整的压力清理。
-- arm64 真机与 x86_64 模拟器真实 SSH 端到端验收。
+- arm64 真机真实 SSH 端到端验收；x86_64 目标已有局域网 Windows OpenSSH HostKey/密码/PTY/命令输出证据。
 - 独立 HarmonyOS 签名配置与 signed HAP 安装验证。

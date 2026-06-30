@@ -47,6 +47,7 @@ interface SortChipItem {
 @Component
 struct Index {
   @State profiles: ConnectionProfile[] = [];
+  @State workbenchProfiles: ConnectionProfile[] = [];
   @State nativeVersion: string = '';
   @State activeTab: number = 0;
   @State searchKeyword: string = '';
@@ -62,6 +63,9 @@ struct Index {
   @StorageProp('avoidNavigationBarHeight') avoidNavigationBarHeight: number = 0;
   @StorageLink('appThemeMode') themeMode: string = THEME_LIGHT;
   @StorageLink('appLanguage') language: string = LANG_ZH;
+  @StorageLink('profileRefreshToken')
+  @Watch('onProfileRefreshTokenChanged')
+  profileRefreshToken: number = 0;
 
   private readonly accentColor: string = '#0A84FF';
 
@@ -103,9 +107,14 @@ struct Index {
     this.reload();
   }
 
+  onProfileRefreshTokenChanged(): void {
+    this.reload();
+  }
+
   reload(): void {
     const groups: ConnectionGroup[] = ProfileRepository.listGroups();
     this.groups = groups;
+    this.workbenchProfiles = ProfileRepository.list().slice(0, 4);
     if (this.selectedGroupId.length > 0 &&
       groups.findIndex((item: ConnectionGroup) => item.id === this.selectedGroupId) < 0) {
       this.selectedGroupId = '';
@@ -208,7 +217,7 @@ struct Index {
   }
 
   private visibleWorkbenchHosts(): ConnectionProfile[] {
-    return ProfileRepository.list().slice(0, 4);
+    return this.workbenchProfiles;
   }
 
   private toast(message: string): void {
@@ -1185,29 +1194,6 @@ struct Index {
     Scroll() {
       Column() {
         Blank().height(this.contentTopInset())
-        Stack() {
-          Text('01 101 001  SSH  110 010 11')
-            .fontSize(16)
-            .fontColor('#406A88')
-            .width('100%')
-            .height('100%')
-            .textAlign(TextAlign.Center)
-          Column({ space: 7 }) {
-            Text('SSH')
-              .fontSize(28)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#38BDF8')
-            Text(this.t('connections.heroSubtitle'))
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(Color.White)
-          }
-        }
-        .width('92%')
-        .height(122)
-        .backgroundColor('#082F49')
-        .borderRadius(18)
-        .margin({ top: 10 })
 
         Text(this.t('connections.methods'))
           .fontSize(24)
@@ -1495,9 +1481,7 @@ struct Index {
         .padding({ top: 5, bottom: 5 })
         .onClick(() => {
           this.activeTab = index;
-          if (index === 1) {
-            this.reload();
-          }
+          this.reload();
         })
       }, (tab: BottomTabItem) => tab.titleKey)
     }

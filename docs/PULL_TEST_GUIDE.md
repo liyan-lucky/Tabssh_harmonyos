@@ -161,6 +161,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps
 - 首页工作台或连接页“导入导出”入口可进入 `ConnectionImportExportPage`。
 - 首页工作台右上角入口应进入 `ToolboxPage`，不得进入设置页。
 - 首页工作台主机列表应直接显示已保存主机的名称、用户、主机、端口、状态和连接按钮，不应通过“主机列表”动作跳转到连接 Tab。
+- 从工作台或连接页新增/编辑主机并返回后，工作台主机列表应通过资料刷新令牌直接更新，不需要手动切换 Tab 才显示。
 
 当前这些数据来自 RDB-backed 仓库；需要补测关闭应用并重新启动后收藏、排序相关统计、分组筛选和访问日志仍正确。
 
@@ -178,7 +179,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps
 - 点击访问审计能进入 `AuditLogPage`。
 - 点击网络拓扑，确认输出本机到默认网络再到已保存 SSH 主机的摘要，并显示默认网络、接口、链路地址和网关；若设备没有默认网络，应明确显示不可用而不是伪造结果。
 - 点击 IP 详情，确认显示基础本地地址与默认网络信息，不泄露完整设备隐私路径。
-- 点击连通性测试，使用 `host port` 输入执行 TCP 探测；当前不是特权 ICMP ping，输出中必须说明这一点。
+- 点击连通性测试，使用 `host port` 输入执行 TCP 探测；再点击“等价验收”，确认输出说明普通应用不使用特权 ICMP raw socket，并显示默认网络、DNS 解析和 TCP connect 结果。
 - 点击端口扫描，默认输入 `127.0.0.1 22,80,443`，确认每个端口都有 TCP 状态和耗时，并确认单次最多 32 个端口的限制提示。
 - 点击网络测速，使用 HTTP/HTTPS URL 分别做下载样本测速和上传测速；上传测速使用 HTTP POST 64 KiB 文本样本，服务端返回 4xx/5xx 时也必须显示上传字节、耗时和吞吐，不得伪造成功。
 - 点击 Nginx 拓扑，确认能汇总 upstream、upstream server、server、listen、server_name、location、proxy_pass、include，并能展开同一输入中的 `set` 变量；外部 include 文件仍需粘贴内容或后续接入文件导入。
@@ -188,7 +189,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps
 - 在设置 Tab 中切换“系统”语言，确认语言摘要显示“跟随系统 · 当前语言”，强停并重新启动后仍保持该选项。
 - 强停并重新启动后，主题和语言偏好应保持。
 
-当前工具箱已有首批纯 ArkTS 开发/系统小工具和纯 HarmonyOS 网络工具子集；网络拓扑、端口扫描、公网 IP、受控子网发现、HTTP 下载/上传测速、连通性、Nginx 同输入变量/include 摘要和 QR Version 2-L 矩阵已有设备输出。特权 ICMP 或等价验收说明、二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开仍未完成。主题和多语言当前已覆盖主壳、工作台、设置 Tab、设置页、工具箱页、主要二级页、连接编辑、终端、SFTP 和端口转发；系统语言跟随已有设置 Tab 点击和强停重启证据，仍需完整多页面切换矩阵和无障碍/高对比验证。
+当前工具箱已有首批纯 ArkTS 开发/系统小工具和纯 HarmonyOS 网络工具子集；网络拓扑、端口扫描、公网 IP、受控子网发现、HTTP 下载/上传测速、连通性、ICMP 等价验收、Nginx 同输入变量/include 摘要和 QR Version 2-L 矩阵已有设备输出。二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开仍未完成。主题和多语言当前已覆盖主壳、工作台、设置 Tab、设置页、工具箱页、主要二级页、连接编辑、终端、SFTP 和端口转发；系统语言跟随已有设置 Tab 点击和强停重启证据，仍需完整多页面切换矩阵和无障碍/高对比验证。
 
 ### 8.2.2 全屏避让
 
@@ -197,6 +198,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_and_smoke.ps
 - 首屏顶部标题、右上入口和第一个卡片不被状态栏、挖孔或系统胶囊遮挡。
 - 底部悬浮胶囊导航不被导航栏或手势区域遮挡。
 - 顶部 Logo/标题区应是半透明渐变过渡，底部 Tab 区应是半透明 Thin blur 胶囊；中间内容可滚动到玻璃层下方，且标题控件不能压住第一张卡片，滚动手势不能被空白覆盖层吞掉。
+- 连接页顶部避让后应直接进入“连接方式”，不再显示 logo 下方 SSH/二进制横幅。
 - 切换横竖屏或不同窗口尺寸后，连接页列表、筛选卡片和底栏仍有足够 padding。
 - Terminal/SFTP 等滚动页面底部内容不会被底栏覆盖。
 
@@ -311,7 +313,7 @@ stty size
 - SFTP 大文件/取消/中断恢复。
 - 三类端口转发真实 HAP 流量证据。
 - 后台保持、RDB 跨重启持久化验收、ProxyJump、Mosh、X11、云/虚拟化/VNC。
-- 工具箱中的特权 ICMP 或等价说明、二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开。
+- 工具箱中的二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开；ICMP 当前只能按普通应用的默认网络、DNS 解析和 TCP connect 做等价验收。
 - 全局主题/多语言完整矩阵；当前已完成主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已有设置 Tab 点击和强停重启证据，仍需无障碍/高对比、动态文案和完整多页面切换验收。
 
 ## 10. 测试完成后要回填
