@@ -35,25 +35,25 @@ jobs:
     env:
       CI: "true"
       VERSION_BUMP: ${{ inputs['版本号处理'] == '完整版本' && 'full' || inputs['版本号处理'] == '增量版本' && 'incremental' || 'none' }}
-      SKIP_PACKAGE_VERIFY: ${{ inputs['跳过包验证'] || true }}
+      SKIP_PACKAGE_VERIFY: ${{ inputs['跳过包验证'] }}
       SDK_REPO: liyan-lucky/HarmonyOS_SDK_Tools
       SDK_TAG: linux_command_line_tool_6.1.1
       SDK_ASSET: linux-harmonyos-command-line-tool-full.7z
 
     steps:
       - name: 拉取仓库
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: 设置 Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: "17"
 
       - name: 设置 Node 20
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
 
@@ -214,12 +214,24 @@ jobs:
         run: |
           SDK_BASE="/home/runner/harmonyos-sdk"
           TOOLS_DIR="$SDK_BASE/command-line-tools"
+          NODE_ROOT="$(dirname "$(dirname "$(command -v node)")")"
+          PATCH_REQUIRE="$GITHUB_WORKSPACE/scripts/run_hvigor_with_sdk_patch.js"
           echo "DEVECO_SDK_HOME=$SDK_BASE" >> "$GITHUB_ENV"
           echo "OHOS_HVIGOR_SDK_ROOT=$SDK_BASE" >> "$GITHUB_ENV"
           echo "DEVECO_TOOLS_HOME=$TOOLS_DIR" >> "$GITHUB_ENV"
+          echo "DEVECO_TOOLS_ROOT=$TOOLS_DIR" >> "$GITHUB_ENV"
+          echo "TABSSH_HWSDK_ROOT=$SDK_BASE" >> "$GITHUB_ENV"
+          echo "HARMONYOS_SDK_DIR=$SDK_BASE/openharmony" >> "$GITHUB_ENV"
+          echo "HARMONYOS_NODE_DIR=$NODE_ROOT" >> "$GITHUB_ENV"
           echo "DEVECO_NODE_EXE=$(command -v node)" >> "$GITHUB_ENV"
+          echo "NODE_OPTIONS=--require=$PATCH_REQUIRE ${NODE_OPTIONS:-}" >> "$GITHUB_ENV"
           echo "PATH=$TOOLS_DIR/bin:$TOOLS_DIR/ohpm/bin:$TOOLS_DIR/hvigor/bin:$PATH" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$SDK_BASE/hms/toolchains/lib:$SDK_BASE/openharmony/previewer/common/bin:$SDK_BASE/openharmony/ets/build-tools/ets-loader/bin/ark/build/bin:$SDK_BASE/openharmony/toolchains:$SDK_BASE/openharmony/toolchains/lib:$SDK_BASE/hms/native/sysroot/usr/lib/x86_64-linux-ohos:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          {
+            echo "sdk.dir=$SDK_BASE/openharmony"
+            echo "hwsdk.dir=$SDK_BASE"
+            echo "npm.dir=$NODE_ROOT"
+          } > local.properties
           node -v
 
       - name: 初始化 ohpm 和 hvigor
@@ -287,6 +299,37 @@ jobs:
           print(f"versionCode={version_code} versionName={version_name}")
           PY
 
+      - name: 刷新 BuildInfo
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from datetime import datetime
+          from pathlib import Path
+          try:
+              from zoneinfo import ZoneInfo
+              now = datetime.now(ZoneInfo("Asia/Shanghai"))
+              build_time = now.strftime("%Y-%m-%d %H:%M:%S +08:00")
+          except Exception:
+              build_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S +00:00")
+          app_text = Path("AppScope/app.json5").read_text(encoding="utf-8")
+          version_name = re.search(r'"versionName"\s*:\s*"([^"]+)"', app_text)
+          version_code = re.search(r'"versionCode"\s*:\s*(\d+)', app_text)
+          if not version_name or not version_code:
+              raise SystemExit("versionName 或 versionCode 未找到")
+          out = Path("entry/src/main/ets/common/BuildInfo.ets")
+          out.write_text(
+              "export class BuildInfo {\n"
+              f"  static readonly APP_VERSION_NAME: string = '{version_name.group(1)}';\n"
+              f"  static readonly APP_VERSION_CODE: number = {version_code.group(1)};\n"
+              f"  static readonly BUILD_TIME: string = '{build_time}';\n"
+              "}\n",
+              encoding="utf-8"
+          )
+          print(f"BuildInfo version={version_name.group(1)} code={version_code.group(1)} time={build_time}")
+          PY
+
       - name: 构建 HAP
         shell: bash
         env:
@@ -297,28 +340,54 @@ jobs:
           export PATH="$TOOLS_DIR/bin:$TOOLS_DIR/ohpm/bin:$TOOLS_DIR/hvigor/bin:$PATH"
           mkdir -p "$HARMONY_ARTIFACTS_DIR"
 
-          if [ -x "$TOOLS_DIR/hvigor/bin/hvigorw" ]; then
-            "$TOOLS_DIR/hvigor/bin/hvigorw" --mode module -p product=default assembleHap
-          elif [ -f "$TOOLS_DIR/hvigor/bin/hvigorw.js" ]; then
-            node "$TOOLS_DIR/hvigor/bin/hvigorw.js" --mode module -p product=default assembleHap
-          elif [ -f "hvigorw" ]; then
-            chmod +x hvigorw
-            ./hvigorw --mode module -p product=default assembleHap
-          else
-            echo "未找到 hvigorw。"
-            find "$TOOLS_DIR" -maxdepth 4 -type f | sort | head -120
-            exit 1
-          fi
+          node scripts/run_hvigor_with_sdk_patch.js assembleHap
 
           find . -type f \( -name "*.hap" -o -name "*.hsp" \) -print
           find . -type f -name "*.hap" -exec cp -f {} "$HARMONY_ARTIFACTS_DIR/" \;
           test -n "$(find "$HARMONY_ARTIFACTS_DIR" -type f -name '*.hap' -print -quit)"
+          {
+            echo "versionName=$(grep -oP '\"versionName\"\\s*:\\s*\"\\K[^\"]+' AppScope/app.json5 | head -1)"
+            echo "versionCode=$(grep -oP '\"versionCode\"\\s*:\\s*\\K[0-9]+' AppScope/app.json5 | head -1)"
+            echo "buildTime=$(grep -oP \"BUILD_TIME:\\s*string\\s*=\\s*'\\K[^']+\" entry/src/main/ets/common/BuildInfo.ets | head -1)"
+            echo "commit=$GITHUB_SHA"
+          } > "$HARMONY_ARTIFACTS_DIR/version.env"
+          find "$HARMONY_ARTIFACTS_DIR" -type f -name "*.hap" -exec sha256sum {} \; | tee "$HARMONY_ARTIFACTS_DIR/SHA256SUMS.txt"
+          for hap in "$HARMONY_ARTIFACTS_DIR"/*.hap; do
+            unzip -l "$hap" > "$hap.filelist.txt"
+          done
+
+      - name: 验证 HAP 包
+        if: ${{ inputs['跳过包验证'] != true }}
+        shell: bash
+        env:
+          HARMONY_ARTIFACTS_DIR: ${{ runner.temp }}/tabssh_harmonyos_artifacts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          haps=("$HARMONY_ARTIFACTS_DIR"/*.hap)
+          if [ "${#haps[@]}" -eq 0 ]; then
+            echo "没有找到待验证的 HAP。"
+            exit 1
+          fi
+          for hap in "${haps[@]}"; do
+            echo "验证 $hap"
+            unzip -t "$hap"
+            unzip -l "$hap" | tee "$hap.verify-list.txt"
+            if ! unzip -l "$hap" | grep -q 'arm64-v8a/.*libentry.so'; then
+              echo "缺少 arm64-v8a libentry.so"
+              exit 1
+            fi
+            if ! unzip -l "$hap" | grep -q 'x86_64/.*libentry.so'; then
+              echo "缺少 x86_64 libentry.so"
+              exit 1
+            fi
+          done
 
       - name: 上传 HarmonyOS 构建产物
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: tabssh-hap
-          path: ${{ runner.temp }}/tabssh_harmonyos_artifacts/*.hap
+          path: ${{ runner.temp }}/tabssh_harmonyos_artifacts/*
           if-no-files-found: error
 
   release:
@@ -331,7 +400,7 @@ jobs:
 
     steps:
       - name: 拉取仓库
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -344,7 +413,13 @@ jobs:
       - name: 准备 Release
         shell: bash
         run: |
-          APP_VERSION=$(grep -oP '"versionName"\s*:\s*"\K[^"]+' AppScope/app.json5 | head -1)
+          VERSION_FILE="$RUNNER_TEMP/release_artifacts/version.env"
+          if [ -f "$VERSION_FILE" ]; then
+            source "$VERSION_FILE"
+            APP_VERSION="${versionName:-}"
+          else
+            APP_VERSION=$(grep -oP '"versionName"\s*:\s*"\K[^"]+' AppScope/app.json5 | head -1)
+          fi
           RELEASE_TAG="OpenTabSsh-Build-v${APP_VERSION:-0.0.0}"
           RELEASE_NAME="OpenTabSsh Build v${APP_VERSION:-0.0.0}"
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
@@ -358,7 +433,13 @@ jobs:
           echo "$CHANGELOG_BODY" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/release_files"
+          shopt -s nullglob
           cp "$RUNNER_TEMP/release_artifacts/"*.hap "$RUNNER_TEMP/release_files/"
+          cp "$RUNNER_TEMP/release_artifacts/SHA256SUMS.txt" "$RUNNER_TEMP/release_files/" 2>/dev/null || true
+          cp "$RUNNER_TEMP/release_artifacts/version.env" "$RUNNER_TEMP/release_files/" 2>/dev/null || true
+          for extra in "$RUNNER_TEMP/release_artifacts/"*.filelist.txt "$RUNNER_TEMP/release_artifacts/"*.verify-list.txt; do
+            cp "$extra" "$RUNNER_TEMP/release_files/"
+          done
           ls -lh "$RUNNER_TEMP/release_files/"
 
       - name: 创建 GitHub Release
@@ -368,4 +449,4 @@ jobs:
           name: ${{ env.RELEASE_NAME }}
           body: ${{ env.CHANGELOG_BODY }}
           files: |
-            ${{ runner.temp }}/release_files/*.hap
+            ${{ runner.temp }}/release_files/*

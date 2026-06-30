@@ -38,7 +38,10 @@
 - `scripts/update_build_info.ps1`：构建前刷新 `BuildInfo.ets`，从 `AppScope/app.json5` 读取版本并写入当前构建时间。
 - `scripts/install_and_smoke.ps1`：HAP 安装与冷启动冒烟工具；采集 bundle/PID/hilog/faultlogger/BuildInfo 线索，只证明安装启动和版本信息可读，不证明 SSH 功能。
 - `scripts/test_terminal_emulator.ps1`：不落盘产物的终端解析器内存回归。
-- `.github/workflows/online-build.yml`：纯 GitHub `ubuntu-latest` 手动最小 HAP 格式构建入口，只验证 unsigned HAP zip 格式与双 ABI `libentry.so`。
+- `.github/workflows/online-build.yml`：纯 GitHub `ubuntu-latest` 手动 4-package HAP 格式构建入口，按 HarmonyOS/OpenHarmony 与 arm64-v8a/x86_64 矩阵验证 unsigned HAP zip 格式和单 ABI `libentry.so`。
+- `.github/workflows/build-harmonyos.yml`：手动 HarmonyOS HAP 构建与可选 Release 发布入口，通过 `HARMONYOS_SDK_TOKEN` 读取私有 SDK release，刷新 BuildInfo，产出 HAP、SHA256 和包清单，并可选择是否执行 HAP 包校验。
+- `.github/workflows/test-harmonyos-sdk-token.yml`：手动 SDK Token 预检 workflow，验证 `HARMONYOS_SDK_TOKEN` 能读取 SDK 仓库、Release 和指定 SDK 资产。
+- `.github/workflows/cleanup-releases.yml`：手动清理 Release、构建标签和旧 workflow run 的维护 workflow，带确认文本保护；只能用于明确的线上清理场景。
 - `reports/`：可提交的无敏感信息审计摘要。
 
 `FILE_LIST.txt` 属于易过期的手工快照，不再使用；以后以 Git 文件树和本文为准。每轮新增或删除文件后必须同步更新本文，避免文件职责和仓库实际状态脱节。

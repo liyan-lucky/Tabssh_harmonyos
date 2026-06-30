@@ -8,18 +8,17 @@ DevEco 的签名 profile、证书、keystore、私钥和口令是本机私有材
 
 ## 线上构建
 
-`.github/workflows/online-build.yml` 当前已经收敛为纯 GitHub Linux runner 的最小 HAP 格式构建入口，并参考 `rustdesk_harmonyos/.github/workflows/build-harmonyos-linux.yml` 的成功结构：
+线上构建当前分为两个手动入口，并参考 `rustdesk_harmonyos/.github/workflows/build-harmonyos-linux.yml` 的成功结构：
 
 - 仅支持 `workflow_dispatch` 手动触发。
 - 运行环境为 `ubuntu-latest`。
 - 不再自动响应 push 或 PR。
-- 不跑静态审计、不跑分组专项审计、不构建 Real HAP。
-- 通过 `harmonyos-dev/setup-harmonyos-sdk@0.2.1` 初始化 `/home/runner/harmonyos-sdk`。
-- `HARMONYOS_SDK_URL` 用于安装 full HarmonyOS SDK。
-- `HARMONYOS_FULL_URL` 用于替换 `/home/runner/harmonyos-sdk/command-line-tools/hvigor`。
-- 可选 workflow input `sdk_sha256` 和 `full_sha256` 用于分别校验两个包。
-- workflow 设置 `DEVECO_TOOLS_ROOT`、`TABSSH_HWSDK_ROOT`、`HARMONYOS_SDK_DIR`、`HARMONYOS_NODE_DIR`、`PATH` 和 `LD_LIBRARY_PATH` 后执行 Hvigor。
-- 构建后用 `unzip -t` 验证 HAP zip 格式，并检查 arm64-v8a 与 x86_64 的 `libentry.so`。
-- 上传 artifact：`opentabssh-linux-unsigned-hap-format-test`。
+- `.github/workflows/online-build.yml` 做 HarmonyOS/OpenHarmony 与 arm64-v8a/x86_64 的 4-package unsigned HAP 格式验证，依赖 `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL`，可选 `sdk_sha256` 和 `full_sha256` 校验 SDK 包。
+- `.github/workflows/build-harmonyos.yml` 做 HAP 构建、BuildInfo 刷新、HAP/SHA256/包清单上传和可选 Release 发布，依赖 `HARMONYOS_SDK_TOKEN` 读取私有 SDK release。
+- `.github/workflows/test-harmonyos-sdk-token.yml` 用于发布构建前预检 SDK Token 权限。
+- `.github/workflows/cleanup-releases.yml` 具备删除 Release、构建标签和旧 workflow run 的能力，只能在明确清理线上资产时手动运行。
+- workflow 设置 `DEVECO_TOOLS_ROOT`、`TABSSH_HWSDK_ROOT`、`HARMONYOS_SDK_DIR`、`HARMONYOS_NODE_DIR`、`PATH` 和 `LD_LIBRARY_PATH` 后通过 `node scripts/run_hvigor_with_sdk_patch.js assembleHap` 执行 Hvigor。
+- 构建后用 `unzip -t` 验证 HAP zip 格式，并检查对应 ABI 的 `libentry.so`。
+- 4-package 格式验证 artifact 为 `opentabssh-*-unsigned-hap`，发布构建 artifact 为 `tabssh-hap`。
 
-线上 HAP 仍是 unsigned，不能当成正式发布包。先确认最小 Linux HAP 格式构建通过，再逐步加回静态审计、Real HAP、安装冒烟和 push/PR 自动检查。线上 Release 不能只看 workflow 绿色或版本号。必须下载资产到 `99_Temp\release_inspect\10_Tabssh_harmonyos`，复核 SHA256、签名、双 ABI、BuildInfo/依赖来源并安装双设备，再把 run、commit、asset 和哈希写回文档。
+线上 HAP 仍是 unsigned，不能当成正式发布包。先确认 SDK Token 预检、4-package Linux HAP 格式构建和发布构建最小路径通过，再逐步加回静态审计、Real HAP、安装冒烟和 push/PR 自动检查。线上 Release 不能只看 workflow 绿色或版本号。必须下载资产到 `99_Temp\release_inspect\10_Tabssh_harmonyos`，复核 SHA256、签名、双 ABI、BuildInfo/依赖来源并安装双设备，再把 run、commit、asset 和哈希写回文档。

@@ -22,9 +22,9 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 2026-06-26 曾把线上构建误按自托管 Windows runner 设计，导致 workflow 长时间处于已列队状态。经验总结：纯 GitHub 在线构建必须使用 GitHub 托管 Linux runner，不能依赖自托管 runner 标签。
 
-2026-06-26 当前 `.github/workflows/online-build.yml` 已改为参考 `rustdesk_harmonyos` 成功结构：基础 SDK 初始化、full SDK 安装、full hvigor 替换、环境变量设置、Hvigor 构建、HAP zip 检查和双 ABI `libentry.so` 检查。该流程尚未在本仓库取得成功 run 证据；失败时优先查看 full SDK 安装、full hvigor 替换、SDK 定位和 Hvigor 构建四段日志。
+2026-06-26 当前 `.github/workflows/online-build.yml` 已改为参考 `rustdesk_harmonyos` 成功结构：基础 SDK 初始化、full SDK 安装、full hvigor 替换、环境变量设置、Hvigor 构建、HAP zip 检查和 ABI `libentry.so` 检查。2026-06-30 远端新增 `.github/workflows/build-harmonyos.yml`、`.github/workflows/test-harmonyos-sdk-token.yml` 和 `.github/workflows/cleanup-releases.yml`；本轮已把发布构建 workflow 调整为稳定 action 版本、项目 SDK patch 脚本、BuildInfo 刷新、HAP/SHA256/包清单产物和可选 HAP 包校验。上述流程尚未在本仓库取得成功 run 证据；失败时优先查看 SDK Token 权限、SDK release 下载、SDK 定位、Hvigor 构建、HAP 包校验和 Release 上传六段日志。
 
-2026-06-26 线上构建现在只验证 Mock unsigned HAP 格式，不自动跑静态审计、不构建 Real HAP、不响应 push/PR。经验总结：必须先让最小 Linux HAP 格式构建通过，再逐步加回 PowerShell/静态审计、分组专项审计、安装冒烟、Real HAP 和 push/PR 自动检查，避免一次失败无法定位原因。
+2026-06-26 线上构建仍以手动触发为主，不自动响应 push/PR。经验总结：必须先让 SDK Token 预检、4-package HAP 格式构建和发布构建分别通过，再逐步加回 PowerShell/静态审计、分组专项审计、安装冒烟、Real HAP、签名包和 push/PR 自动检查，避免一次失败无法定位原因。`cleanup-releases.yml` 具备删除 Release、标签和 workflow run 的能力，只能在明确需要清理线上资产时手动运行。
 
 ## P1：文档与配置曾不一致
 

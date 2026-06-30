@@ -13,7 +13,9 @@ $required = @(
   "docs\WORKSPACE_PATHS.md", "docs\BUILD_READY.md", "docs\BUILD_TEST.md", "docs\CORE.md", "docs\PROGRESS.md", "docs\PROICONS_ICONS.md", "docs\NEW_CHAT_PROMPT.md",
   "scripts\stage_project_for_build.ps1", "scripts\build_mock_hap.ps1", "scripts\verify_mock_hap.ps1",
   "scripts\build_native_dependencies.ps1", "scripts\build_real_hap.ps1", "scripts\verify_real_hap.ps1",
-  "scripts\clean_project.ps1", "scripts\backup_project.ps1", "scripts\update_build_info.ps1"
+  "scripts\clean_project.ps1", "scripts\backup_project.ps1", "scripts\update_build_info.ps1",
+  ".github\workflows\online-build.yml", ".github\workflows\build-harmonyos.yml",
+  ".github\workflows\test-harmonyos-sdk-token.yml", ".github\workflows\cleanup-releases.yml"
 )
 $checks = @()
 foreach ($path in $required) {
@@ -46,6 +48,18 @@ $i18nPath = Join-Path $projectRoot "entry\src\main\ets\common\I18n.ets"
 $i18n = if (Test-Path -LiteralPath $i18nPath) { Get-Content -LiteralPath $i18nPath -Raw } else { "" }
 $buildInfoPath = Join-Path $projectRoot "entry\src\main\ets\common\BuildInfo.ets"
 $buildInfo = if (Test-Path -LiteralPath $buildInfoPath) { Get-Content -LiteralPath $buildInfoPath -Raw } else { "" }
+$onlineBuildWorkflowPath = Join-Path $projectRoot ".github\workflows\online-build.yml"
+$onlineBuildWorkflow = if (Test-Path -LiteralPath $onlineBuildWorkflowPath) { Get-Content -LiteralPath $onlineBuildWorkflowPath -Raw } else { "" }
+$releaseBuildWorkflowPath = Join-Path $projectRoot ".github\workflows\build-harmonyos.yml"
+$releaseBuildWorkflow = if (Test-Path -LiteralPath $releaseBuildWorkflowPath) { Get-Content -LiteralPath $releaseBuildWorkflowPath -Raw } else { "" }
+$releaseBuildWorkflowLines = $releaseBuildWorkflow -split "\r?\n"
+$skipPackageVerifyEnvLine = @($releaseBuildWorkflowLines | Where-Object { $_.Contains("SKIP_PACKAGE_VERIFY:") })
+$skipPackageVerifyIfLine = @($releaseBuildWorkflowLines | Where-Object { $_.Contains("if: ") -and $_.Contains("inputs[") -and $_.Contains(" != true") })
+$releaseBuildVerifyToggleOk = ($skipPackageVerifyEnvLine.Count -gt 0) -and -not (($skipPackageVerifyEnvLine -join "`n").Contains("|| true")) -and ($skipPackageVerifyIfLine.Count -gt 0)
+$sdkTokenWorkflowPath = Join-Path $projectRoot ".github\workflows\test-harmonyos-sdk-token.yml"
+$sdkTokenWorkflow = if (Test-Path -LiteralPath $sdkTokenWorkflowPath) { Get-Content -LiteralPath $sdkTokenWorkflowPath -Raw } else { "" }
+$cleanupWorkflowPath = Join-Path $projectRoot ".github\workflows\cleanup-releases.yml"
+$cleanupWorkflow = if (Test-Path -LiteralPath $cleanupWorkflowPath) { Get-Content -LiteralPath $cleanupWorkflowPath -Raw } else { "" }
 $auditLogModel = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\common\models\ConnectionAuditLog.ets") -Raw
 $auditPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\AuditLogPage.ets"
 $auditPage = if (Test-Path -LiteralPath $auditPagePath) { Get-Content -LiteralPath $auditPagePath -Raw } else { "" }
@@ -204,6 +218,11 @@ $checks += @(
   [PSCustomObject]@{ Name = "i18n-zh-en"; Pass = (Test-Path -LiteralPath $i18nPath) -and $i18n.Contains("const ZH_TEXT") -and $i18n.Contains("const EN_TEXT") -and $i18n.Contains("tab.workbench") -and $i18n.Contains("toolbox.title") },
   [PSCustomObject]@{ Name = "settings-tab-expanded"; Pass = $i18n.Contains("'tab.mine': '设置'") -and $indexPage.Contains("SettingsThemeRow") -and $indexPage.Contains("SettingsLanguageRow") -and -not $indexPage.Contains("mine.quote") -and -not $indexPage.Contains("pages/SettingsPage") },
   [PSCustomObject]@{ Name = "build-info-script"; Pass = (Test-Path -LiteralPath $buildInfoPath) -and $buildInfo.Contains("APP_VERSION_NAME") -and $buildInfo.Contains("BUILD_TIME") -and $aboutPage.Contains("APP_VERSION_NAME") -and $aboutPage.Contains("BUILD_TIME") -and (Get-Content -LiteralPath (Join-Path $projectRoot "scripts\build_mock_hap.ps1") -Raw).Contains("update_build_info.ps1") -and (Get-Content -LiteralPath (Join-Path $projectRoot "scripts\build_real_hap.ps1") -Raw).Contains("update_build_info.ps1") -and (Get-Content -LiteralPath (Join-Path $projectRoot "scripts\install_and_smoke.ps1") -Raw).Contains("build-info") },
+  [PSCustomObject]@{ Name = "online-build-4-package-workflow"; Pass = $onlineBuildWorkflow.Contains("TabSSH Linux HAP 4-package build") -and $onlineBuildWorkflow.Contains("openharmony_verify") -and $onlineBuildWorkflow.Contains("HARMONYOS_SDK_URL") -and $onlineBuildWorkflow.Contains("HARMONYOS_FULL_URL") -and $onlineBuildWorkflow.Contains("run_hvigor_with_sdk_patch.js") -and $onlineBuildWorkflow.Contains('opentabssh-${{ matrix.platform }}-${{ matrix.abi }}-unsigned-hap') -and $onlineBuildWorkflow.Contains("actions/upload-artifact@v4") },
+  [PSCustomObject]@{ Name = "release-build-workflow"; Pass = $releaseBuildWorkflow.Contains("HARMONYOS_SDK_TOKEN") -and $releaseBuildWorkflow.Contains("linux_command_line_tool_6.1.1") -and $releaseBuildWorkflow.Contains("run_hvigor_with_sdk_patch.js") -and $releaseBuildWorkflow.Contains("BuildInfo") -and $releaseBuildWorkflow.Contains("version.env") -and $releaseBuildWorkflow.Contains("SHA256SUMS.txt") -and $releaseBuildWorkflow.Contains('unzip -t "$hap"') -and $releaseBuildWorkflow.Contains("arm64-v8a/.*libentry.so") -and $releaseBuildWorkflow.Contains("x86_64/.*libentry.so") -and $releaseBuildWorkflow.Contains("softprops/action-gh-release@v2") -and $releaseBuildWorkflow.Contains("actions/upload-artifact@v4") -and -not ($releaseBuildWorkflow.Contains("actions/checkout@v7") -or $releaseBuildWorkflow.Contains("actions/setup-java@v5") -or $releaseBuildWorkflow.Contains("actions/setup-node@v6") -or $releaseBuildWorkflow.Contains("actions/upload-artifact@v7")) },
+  [PSCustomObject]@{ Name = "release-build-verify-toggle"; Pass = $releaseBuildVerifyToggleOk },
+  [PSCustomObject]@{ Name = "sdk-token-workflow"; Pass = $sdkTokenWorkflow.Contains("HARMONYOS_SDK_TOKEN") -and $sdkTokenWorkflow.Contains("gh repo view") -and $sdkTokenWorkflow.Contains("gh release view") -and $sdkTokenWorkflow.Contains("linux-harmonyos-command-line-tool-full.7z") },
+  [PSCustomObject]@{ Name = "cleanup-workflow-guard"; Pass = $cleanupWorkflow.Contains("DELETE_ALL_RELEASES") -and $cleanupWorkflow.Contains("permissions:") -and $cleanupWorkflow.Contains("actions: write") -and $cleanupWorkflow.Contains("gh release delete") -and $cleanupWorkflow.Contains("CURRENT_RUN_ID") },
   [PSCustomObject]@{ Name = "theme-i18n-primary-pages"; Pass = $themeI18nPrimaryPagesCovered -and $i18n.Contains("terminal.title") -and $i18n.Contains("sftp.title") -and $i18n.Contains("forward.title") -and $i18n.Contains("edit.titleNew") },
   [PSCustomObject]@{ Name = "theme-i18n-secondary-pages"; Pass = $themeI18nSecondaryPagesCovered -and $i18n.Contains("audit.title") -and $i18n.Contains("groups.title") -and $i18n.Contains("import.title") -and $i18n.Contains("history.title") -and $i18n.Contains("about.title") -and $i18n.Contains("terminalSettings.title") },
   [PSCustomObject]@{ Name = "proicons-policy"; Pass = Test-Path -LiteralPath (Join-Path $projectRoot "docs\PROICONS_ICONS.md") },

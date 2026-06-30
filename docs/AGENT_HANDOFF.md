@@ -12,15 +12,15 @@
 
 `ConnectionGroupPage.ets` 已新增并注册到 `main_pages.json`，可承载分组列表、新建分组、改名、换色、上移/下移、折叠/展开、空分组处理和每组主机数。该页面沿用现有卡片风格，已接 RDB-backed 仓库；首页工作台与连接页入口、连接页按组筛选已编码，新增分组已完成设备点击和重启回显验证。非空分组迁移、改名/换色/折叠/删除空组/筛选生效和完整设备点击证据仍待补。
 
-`.github/workflows/online-build.yml` 当前是纯 GitHub `ubuntu-latest` 的最小 HAP 格式构建入口，已参考 `rustdesk_harmonyos` 的 Linux 构建结构。流程是：初始化基础 HarmonyOS SDK，安装 full SDK，替换 full hvigor，设置 SDK 与工具链环境变量，然后执行 `node scripts/run_hvigor_with_sdk_patch.js assembleHap`。该 workflow 只验证 unsigned HAP 格式和双 ABI `libentry.so`，不跑静态审计、不构建 Real HAP、不响应 push/PR。
+线上构建现在有四个手动 workflow：`.github/workflows/test-harmonyos-sdk-token.yml` 预检 `HARMONYOS_SDK_TOKEN` 与私有 SDK release 资产；`.github/workflows/online-build.yml` 在 GitHub `ubuntu-latest` 上做 HarmonyOS/OpenHarmony 与 arm64-v8a/x86_64 的 4-package unsigned HAP 格式验证；`.github/workflows/build-harmonyos.yml` 用私有 SDK release 构建 HAP、刷新 BuildInfo、上传 HAP/SHA256/包清单并可选创建 Release；`.github/workflows/cleanup-releases.yml` 仅用于明确需要时手动清理 Release、标签和旧 workflow run。上述 workflow 均不响应 push/PR，仍缺本仓库线上成功 run 证据。
 
 `docs/BUILD_READY.md` 已记录当前 `main` 可以进入本地和线上最小 HAP 构建测试。`docs/PULL_TEST_GUIDE.md` 已改为直接拉取 `main`。`docs/GIT_PUBLISH.md` 已记录用户允许直接操作 `main`。后续如需继续对齐 Android 版，应优先补：RDB 跨重启点击证据与 schema migration、连接页批量/高亮点击证据、访问日志跨重启/真实连接回显、多设备全屏避让矩阵、私钥认证、端口转发真实流量、终端复杂 TUI 设备证据、SFTP 大文件/取消/恢复和 arm64 真机验收。
 
 ## 当前必须补的新证据
 
-- GitHub Actions `TabSSH Linux HAP format build` 的运行结果。
-- 线上 artifact 中的 unsigned HAP、SHA256 和 HAP 文件列表。
-- 线上 Linux 构建日志中 full SDK 安装、full hvigor 替换、SDK 定位、Hvigor 构建四段关键结论。
+- GitHub Actions `测试 HarmonyOS SDK Token`、`TabSSH Linux HAP 4-package build` 和 `构建并发布 HarmonyOS HAP` 的运行结果。
+- 线上 artifact 中的 unsigned HAP、SHA256、HAP 文件列表和 `version.env`。
+- 线上 Linux 构建日志中 SDK Token 权限、SDK release 下载、SDK 定位、Hvigor 构建、HAP 包校验和 Release 参数六段关键结论。
 - 工具箱剩余网络类工具能力：网络拓扑、默认网络信息和端口扫描已有 Real HAP 输出；仍需补 HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要的逐项点击证据，以及主动子网发现、上传测速、特权 ICMP、二维码图片矩阵/美化、公网 IP、更多网卡字段和复杂 Nginx include/变量展开。
 - 主题/语言全局覆盖：关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页已迁移；仍需补系统语言跟随、跨重启偏好保持、多页面切换即时刷新、无障碍/高对比和部分 service/audit 动态文案。
 - 工作台内联主机列表在新增/编辑/删除主机后的刷新和连接按钮点击证据。
@@ -41,9 +41,9 @@
 
 1. 完整读取本文件，再按 `docs/README.md` 顺序阅读。
 2. 执行 `git status --short --branch` 和完整 diff，确认当前在 `main`。
-3. 若目标是验证线上构建，先确认仓库已配置两个 HarmonyOS SDK 包地址变量。
-4. 运行 GitHub Actions：`TabSSH Linux HAP format build`。
-5. 若线上构建失败，优先看 full SDK 安装、full hvigor 替换、SDK 定位和 Hvigor 构建四段日志，不要先加回审计或 Real HAP。
+3. 若目标是验证线上构建，先确认仓库已配置 `HARMONYOS_SDK_TOKEN`；若运行 4-package 格式验证，还需配置 `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL`。
+4. 运行 GitHub Actions：先跑 `测试 HarmonyOS SDK Token`，再跑 `TabSSH Linux HAP 4-package build` 或 `构建并发布 HarmonyOS HAP`。
+5. 若线上构建失败，优先看 SDK Token 权限、SDK release 下载、SDK 定位、Hvigor 构建、HAP 包校验和 Release 上传日志，不要先加回自动审计或安装冒烟。
 6. 本地仍按需执行 `scripts/run_local_checks.ps1`；如时间紧，先执行 `scripts/run_local_checks.ps1 -SkipMockBuild`。
 7. 默认检查通过后，执行 Mock HAP 构建/验包；具备三方依赖时再执行真实 Core HAP 构建/验包。
 8. 安装 HAP 后优先验证：首页工作台保存主机直显和右上工具箱入口、设置 Tab 工具箱入口、工具箱网络拓扑/端口扫描/测速/连通性/Nginx/QR 工具、设置 Tab 主题/语言切换、首页连接筛选 UI、连接分组页路由编译、导入导出页 picker 与真实文件回读、顶部/底部半透明玻璃层、Terminal/SFTP/PortForward/Settings/About 路由。
