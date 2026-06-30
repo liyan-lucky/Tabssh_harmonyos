@@ -141,7 +141,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 首页工作台右上角入口能打开 `ToolboxPage`，不再打开设置页。
 - 首页工作台主机列表直接显示已保存主机信息和连接按钮，不再通过动作切换到连接 Tab。
 - “设置 / 工具 / 工具箱”入口能打开 `ToolboxPage`。
-- 第四个底部 Tab 为“设置”，且主题/语言、文件、缓存、终端、工具和关于分组直接展开；浅色/深色和中文/English 切换能即时刷新，并在重启后保持偏好。
+- 第四个底部 Tab 为“设置”，且主题/语言、文件、缓存、终端、工具和关于分组直接展开；浅色/深色、中文/English 和系统语言跟随切换能即时刷新，并在重启后保持偏好。
 - 连接页“全部分组 / 分组名 / 管理分组”芯片能筛选或跳转。
 - 连接页搜索命中高亮和批量模式控件不会撑破筛选卡片或遮挡连接行。
 - 全屏窗口下顶部标题、滚动内容和底部胶囊导航不被状态栏、导航栏、手势区或挖孔遮挡。
@@ -156,6 +156,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-06-30 15:28 最新本地基线已推进到 Real HAP SHA256 `9E2394A128527539E263F9C8CF35DB5954B2CCFBD609D66DD064634D5A95BB5A`。本轮按在线检查反馈收紧首页顶部和 Logo 区默认距离：`HeaderOverlay` 为 `avoidStatusBarHeight + 76`，内容顶部为 `headerOverlayHeight() - 14`，Header 行高和顶部 padding 已缩小。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9；x86_64 模拟器安装冷启动 PID `6767`，已取得首页紧凑顶部截图 `screenshot_20260630_152837_home_top_tighter.jpeg` 和层级 `layout_20260630_152837_home_top_tighter.json`，确认顶部贴近且第一张卡片未压住标题。
 
+2026-06-30 15:43 最新本地基线已推进到 Real HAP SHA256 `A54EDDE5C4338B393952875A4BACA1AFD7A8D2E67ECBB5845F9A03823053DFED`。本轮补齐系统语言跟随：设置 Tab 语言分段为“系统 / 中 / EN”，系统选项通过 `@ohos.i18n` 解析首选语言并归一到中文/English。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 119/119；x86_64 模拟器安装冷启动 PID `17370`，点击“系统”后设置 Tab 显示“跟随系统 · 简体中文”，强停重启 PID `17427` 后仍回显。证据为 `layout_20260630_154312_settings_system_language_selected.json`、`screenshot_20260630_154312_settings_system_language_selected.jpeg` 和 `layout_20260630_154312_settings_system_language_after_restart.json`。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
@@ -165,7 +167,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 连接历史真实成功/失败数据、点击行进入终端和跨重启统计回显。
 - 连接导入导出真实文件写入/回读、真实 OpenSSH/JSON 样本导入落库、跨重启回显、加密 ZIP、QR 配对和冲突合并。
 - 工具箱剩余网络类能力：网络拓扑、默认网络信息和端口扫描已有 Real HAP 输出；HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要仍缺逐项点击证据；主动子网发现、上传测速、特权 ICMP、二维码图片矩阵、公网 IP、更多网卡字段和复杂 Nginx include/变量展开仍未完成。
-- 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，仍需系统语言跟随、跨重启偏好保持、多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
+- 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已完成设置 Tab 点击和强停重启回显；仍需多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
 - 全屏避让的横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵；单台 x86_64 模拟器多页抽样已通过。
 - 非空分组迁移和拖拽排序。
 - 私钥认证完整端到端证据。

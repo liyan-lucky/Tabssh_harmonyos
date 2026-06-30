@@ -26,10 +26,11 @@
 - 2026-06-30 继续按最新偏好调整主壳：第四个 Tab 已从“我的”改为“设置”，设置内容直接展开到主 Tab，去掉旧顶部文本和“系统设置”跳转项；工作台右上角仍进入工具箱，工具箱入口也保留在设置 Tab 的工具分组中。顶部 Logo/标题区和底部 Tab 区改为半透明模糊背景，内容可延伸到玻璃层下方；关于页显示 `BuildInfo.ets` 提供的版本和构建时间，`scripts/update_build_info.ps1` 已接入 Mock/Real HAP 构建脚本。当轮 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 107/107，Real HAP 大小 `12,999,437` bytes、SHA256 `145DD997852A047D764D495116CAC1F5DA2446707BE56D56B0DFEF0494089A93`；安装冷启动 PID `17261`，已取得首页玻璃层、设置 Tab 展开/滚动和关于页版本构建时间截图证据。
 - 2026-06-30 按 RustDesk HarmonyOS UI 文档修正全局主题色板：浅色基底改为 `#F0F4FA`，暗色基底改为 `#171A1E`，底部 Tab 胶囊使用 `#30FFFFFF` / `#20000000` 高透明材质色；顶部 Logo/标题区从整块毛玻璃改为多段半透明渐变，并把内容顶部起点与渐变高度分离，避免标题控件压到第一张卡片。本轮同时把 `ConnectionEditPage`、`TerminalPage`、`SftpPage`、`PortForwardPage` 接入 `AppTheme`、`I18n`、主题/语言 `@StorageLink`，清理主页残留中文 toast 和写死灰色。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 108/108，Real HAP 大小 `13,032,652` bytes、SHA256 `34A2CA50560F1BAE9662888216B2E287DC078B8E386A8E7659B954E753FC406C`；安装冷启动 PID `15229`，首页最终截图 `screenshot_20260630_074325_home_theme_gradient_final.jpeg` 确认顶部渐变与内容间距已修正。
 - 2026-06-30 继续按在线检查反馈收紧首页顶部和 Logo 区默认距离：`HeaderOverlay` 高度调整为 `avoidStatusBarHeight + 76`，内容起点调整为 `headerOverlayHeight() - 14`，Header 行高和顶部 padding 同步缩小，使顶部标题贴近安全区且第一张主机卡片进入渐变尾部但不重叠。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，Real HAP 大小 `13,032,652` bytes、SHA256 `9E2394A128527539E263F9C8CF35DB5954B2CCFBD609D66DD064634D5A95BB5A`；安装冷启动 PID `6767`，首页截图 `screenshot_20260630_152837_home_top_tighter.jpeg` 已确认顶部/Logo 间距收紧。
+- 2026-06-30 补齐设置 Tab 的系统语言跟随选项：语言分段改为“系统 / 中 / EN”，`AppSettings.ets` 使用纯 HarmonyOS `@ohos.i18n` 读取首选语言列表、系统语言和系统 locale，并在 `I18n.ets` 渲染时把 `system` 解析为中文/English。最新 `scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 119/119，Real HAP 大小 `13,039,728` bytes、SHA256 `A54EDDE5C4338B393952875A4BACA1AFD7A8D2E67ECBB5845F9A03823053DFED`；安装冷启动 PID `17370`，设置 Tab 语言行设备层级可见“系统 / 中 / EN”，点击系统后显示“跟随系统 · 简体中文”，强停重启后 PID `17427` 仍回显该偏好。
 - `.github/workflows/online-build.yml` 已收敛为纯 GitHub `ubuntu-latest` 的手动 4-package HAP 格式构建入口，并已参考 `rustdesk_harmonyos` 的 Linux 成功结构重写：基础 SDK 初始化、full SDK 安装、full hvigor 替换、SDK 环境变量设置、Hvigor 构建、HAP zip 格式校验、单 ABI `libentry.so` 检查和 artifact 上传。`.github/workflows/build-harmonyos.yml` 作为手动 HAP 构建与可选 Release 发布入口，已改为稳定 action 版本、通过项目 SDK patch 脚本构建、刷新 BuildInfo、上传 HAP/SHA256/包清单，并用 `test-harmonyos-sdk-token.yml` 预检私有 SDK Token。上述 workflow 仍缺本仓库线上成功 run 证据。
 - `scripts/run_local_checks.ps1` 已作为本地拉取后一键检查入口：默认串联 `git diff --check`、全局静态审计、连接分组专项审计、终端解析器测试、Mock 构建和验包；可选 `-WithRealCore` 与 `-BuildDependencies` 执行真实 HAP 与三方依赖路径。
 - `scripts/install_and_smoke.ps1` 已作为安装/冷启动冒烟入口：安装 `99_Temp` 中的 HAP、启动 `com.open.tabssh`、采集 bundle/PID/hilog/faultlogger 线索，并输出无凭据摘要；该脚本只做安装启动检查，不标记 SSH 功能完成。
-- `scripts/audit_project.ps1` 已增加连接分组、RDB、访问日志、访问日志导出/筛选、连接历史、连接导入导出、搜索高亮、批量操作、全屏避让、工具箱入口、工具箱首批纯工具能力、工具箱网络工具能力、工作台内联主机列表、主题/语言偏好、主题色板、中英翻译主页面覆盖、顶部/底部玻璃层和顶部紧凑间距审计项；`scripts/audit_connection_groups.ps1` 已增加专项审计，并接入一键检查，覆盖分组页面、路由、首页入口/分组筛选、RDB-backed 仓库接口、改名、换色、排序、折叠和文档同步。2026-06-30 最新本地检查已通过全局审计 118/118、连接分组专项审计、终端解析器、Mock HAP 和 Real HAP 验包。
+- `scripts/audit_project.ps1` 已增加连接分组、RDB、访问日志、访问日志导出/筛选、连接历史、连接导入导出、搜索高亮、批量操作、全屏避让、工具箱入口、工具箱首批纯工具能力、工具箱网络工具能力、工作台内联主机列表、主题/语言偏好、系统语言跟随、主题色板、中英翻译主页面覆盖、顶部/底部玻璃层和顶部紧凑间距审计项；`scripts/audit_connection_groups.ps1` 已增加专项审计，并接入一键检查，覆盖分组页面、路由、首页入口/分组筛选、RDB-backed 仓库接口、改名、换色、排序、折叠和文档同步。2026-06-30 最新本地检查已通过全局审计 119/119、连接分组专项审计、终端解析器、Mock HAP 和 Real HAP 验包。
 
 ## 已编码、待真实构建与端到端验证
 
@@ -48,7 +49,7 @@
 - 私钥通过系统文档选择器复制到应用私有 `filesDir/ssh_keys`，不记录原文件 URI 或内容，并提供应用内删除入口；真实包已在 x86_64 模拟器覆盖安装，端到端认证待验。
 - 连接导入导出已编码并通过 HAP 编译、Real HAP 安装和 picker 唤起验证；真实导出文件内容回读、真实 OpenSSH/JSON 样本导入落库、导入后跨重启回显、加密备份和 QR 配对仍未完成。
 - 工具箱页已注册并能从工作台右上角与“设置 / 工具 / 工具箱”进入；页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、网络/系统/开发分类和工具卡片。首批纯 ArkTS/纯 HarmonyOS 工具已可用：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、访问审计跳转、默认网络/链路/DNS/网关摘要、TCP 连通性探测、端口扫描、HTTP 下载样本测速、Nginx 配置摘要和 QR 负载摘要；仍未实现主动子网发现、上传测速、特权 ICMP、二维码图片矩阵、公网 IP 和复杂 Nginx include/变量展开。
-- 主题和双语偏好已编码并通过 preferences 持久化，当前覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；仍需继续补系统语言跟随、更多 service/audit 动态文案、高对比/字体/无障碍和完整切换矩阵。
+- 主题和双语偏好已编码并通过 preferences 持久化，当前覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；设置 Tab 已支持系统语言跟随并完成强停重启回显；仍需继续补更多 service/audit 动态文案、高对比/字体/无障碍和完整切换矩阵。
 - 模拟器已验证系统文档选择器 UI 可打开；同时发现并修复连接编辑返回后的列表刷新问题。
 - 首次真实连接发现同步 N-API 导致 `APP_INPUT_BLOCK`；`connect`、`openShell`、`sftpList` 已迁移为 async work / Promise 并完成 Mock/真实双架构构建，尚待安装回归。
 - 上述异步真实 HAP 已成功覆盖安装到 x86_64 模拟器；HostKey/认证/PTY/SFTP 和无 appfreeze 回归仍待取证。
@@ -70,7 +71,7 @@
 - 私钥认证、外部服务器与 arm64 真机端到端证据；HUKS/ASSET 安全存储。
 - 连接管理仍未完成：基础新增分组和分组变更摘要已通过跨重启回显，连接历史空状态和连接导入导出 picker 入口已通过设备冒烟，但批量操作逐项点击、搜索高亮逐字段点击、真实连接日志回显、统计页真实数据、导入样本落库/导出回读、schema migration 和设备端完整筛选/分组点击证据仍待补；首页分组入口、分组筛选、批量/高亮源码、访问日志页、连接历史页、连接导入导出页和多页全屏避让已有 HAP/安装/UI hierarchy 抽样证据，但完整设备交互未完成。
 - 工具箱真实工具能力仍未完成：JSON、编码、文本、颜色、单位、系统/存储/IP 基础信息、访问审计跳转、默认网络摘要、TCP 连通性测试、端口扫描、HTTP 下载样本测速、Nginx 摘要解析和 QR 负载摘要已有首批纯 ArkTS/纯 HarmonyOS 能力；仍需补主动子网发现、上传测速、特权 ICMP 或等价说明、二维码图片矩阵/美化、公网 IP、更多网卡枚举字段和复杂 Nginx include/变量展开。
-- 主题与多语言仍需完整验收：当前浅色/深色和中文/English 偏好已覆盖主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；仍缺系统语言跟随、字体/高对比/无障碍、更多动态 service/audit 文案和跨重启/多页面切换矩阵。
+- 主题与多语言仍需完整验收：当前浅色/深色、中文/English 和系统语言跟随偏好已覆盖主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页；系统语言选项已完成设置 Tab 点击和强停重启回显，仍缺字体/高对比/无障碍、更多动态 service/audit 文案和完整多页面切换矩阵。
 - 终端剩余兼容：完整键盘/IME 逐键输入、选择与搜索、鼠标协议、更多 DEC/xterm 边界、vim/tmux/htop/nano 和设备端性能/渲染回归。
 - SFTP 大文件、中断恢复、外部服务器写操作及系统文件保存选择器的稳定回归。
 - local/remote/dynamic forwarding 的真实 HAP 与逐字节流量链路证据；源码实现不能替代验收。

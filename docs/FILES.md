@@ -12,9 +12,9 @@
 - `entry/src/main/ets/pages/ConnectionImportExportPage.ets`：连接导入导出页；对齐 Android `ImportExportActivity` 的安全核心路径，支持 OpenSSH config 和脱敏 JSON 连接备份导入/导出，使用系统文件选择器并接入全屏避让。
 - `entry/src/main/resources/base/profile/main_pages.json`：页面路由清单；已注册 `pages/ConnectionGroupPage`、`pages/AuditLogPage`、`pages/ConnectionHistoryPage`、`pages/ConnectionImportExportPage` 与 `pages/ToolboxPage`。
 - `entry/src/main/ets/common/`：模型、Native 包装、会话管理和 RDB-backed 仓库。
-- `entry/src/main/ets/common/AppSettings.ets`：应用级主题和语言偏好；用 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面即时刷新。
+- `entry/src/main/ets/common/AppSettings.ets`：应用级主题和语言偏好；用 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面即时刷新；语言支持 `system/zh/en`，系统模式通过 `@ohos.i18n` 解析首选系统语言后归一到中文/English。
 - `entry/src/main/ets/common/AppTheme.ets`：浅色/深色主题色板，供首页、顶部半透明渐变、底部半透明 Thin blur 胶囊、设置页、工具箱页、连接编辑、终端、SFTP、端口转发和已迁移二级页使用。
-- `entry/src/main/ets/common/I18n.ets`：中英双语翻译表；当前覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组和连接导入导出页。
+- `entry/src/main/ets/common/I18n.ets`：中英双语翻译表；当前覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，并在 `system` 偏好下按系统语言解析有效词表。
 - `entry/src/main/ets/common/BuildInfo.ets`：构建时生成的版本号、版本码和构建时间常量；关于页展示这些信息。
 - `entry/src/main/ets/common/models/ConnectionProfile.ets`：连接配置模型；已扩展 Android 常见字段，但字段骨架不等于功能完成。
 - `entry/src/main/ets/common/models/ConnectionGroup.ets`：连接分组、搜索过滤和排序模式模型，包含分组规范化逻辑。

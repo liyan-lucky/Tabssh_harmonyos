@@ -2,7 +2,7 @@
 
 - `run_local_checks.ps1`：本地拉取后的一键检查入口；默认执行 `git diff --check`、全局静态审计、连接分组专项审计、终端解析器测试、Mock 构建和 Mock 验包；加 `-WithRealCore` 后执行真实 HAP 构建与验包，加 `-BuildDependencies` 后先重建双 ABI 三方依赖。
 - `audit_connection_groups.ps1`：连接分组专项静态审计；检查 `ConnectionGroupPage.ets`、首页分组入口/筛选、`main_pages.json` 路由、RDB-backed 仓库接口、改名/换色/排序/折叠能力和文档同步；只证明源码结构完整，不证明 ArkUI/HAP 编译通过或跨重启点击验收。
-- `audit_project.ps1`：全局静态审计；当前覆盖 ProIcons 政策、连接分组、连接历史、连接导入导出、RDB 持久化、访问日志摘要/导出/筛选、搜索高亮、批量操作、主题/中英双语偏好、设置 Tab 展开、顶部/底部半透明玻璃层、BuildInfo、所有注册页面的全屏避让、终端、SFTP、转发和生成产物清理。它不能替代 HAP 安装、设备点击、跨重启或真实流量证据。
+- `audit_project.ps1`：全局静态审计；当前覆盖 ProIcons 政策、连接分组、连接历史、连接导入导出、RDB 持久化、访问日志摘要/导出/筛选、搜索高亮、批量操作、主题/中英双语偏好、系统语言跟随、设置 Tab 展开、顶部/底部半透明玻璃层、BuildInfo、所有注册页面的全屏避让、终端、SFTP、转发和生成产物清理。它不能替代 HAP 安装、设备点击、跨重启或真实流量证据。
 - `install_and_smoke.ps1`：安装 `99_Temp` 中的 HAP 到 hdc 默认设备或 `-DeviceId` 指定设备，启动 `com.open.tabssh`，采集 bundle dump、PID、过滤 hilog/faultlogger 和 BuildInfo 线索，并输出无凭据摘要；只证明安装/冷启动和版本信息可读，不证明 SSH 功能。
 - `stage_project_for_build.ps1`：把干净源码复制到 `99_Temp\harmonyos_stage\10_Tabssh_harmonyos`，仓库根不生成构建产物；清理旧 stage 时会重试并用空目录镜像兜底处理深路径缓存，但目标仍必须位于本项目 `99_Temp` stage 下。
 - `build_mock_hap.ps1`：在 stage 中刷新 BuildInfo 并执行 Hvigor Mock HAP 构建，复制 HAP/APP 到 `99_Temp\harmonyos_build\10_Tabssh_harmonyos`，日志写入 `99_Temp\tabssh_harmonyos_logs`。

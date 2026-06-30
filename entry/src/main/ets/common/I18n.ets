@@ -1,4 +1,4 @@
-import { LANG_EN } from './AppSettings';
+import { LANG_EN, resolveEffectiveLanguage } from './AppSettings';
 
 const ZH_TEXT: Record<string, string> = {
   'tab.workbench': '工作台',
@@ -13,6 +13,8 @@ const ZH_TEXT: Record<string, string> = {
   'common.all': '全部',
   'common.light': '浅色',
   'common.dark': '深色',
+  'common.system': '系统',
+  'common.zhShort': '中',
   'common.chinese': '简体中文',
   'common.english': 'English',
   'common.enabled': '已开启',
@@ -136,6 +138,7 @@ const ZH_TEXT: Record<string, string> = {
   'settings.title': '系统设置',
   'settings.appearance': '外观与语言',
   'settings.language': '语言',
+  'settings.languageSystemSub': '跟随系统 · ',
   'settings.theme': '主题',
   'settings.fontSize': '字体大小',
   'settings.fontMedium': '中',
@@ -545,6 +548,8 @@ const EN_TEXT: Record<string, string> = {
   'common.all': 'All',
   'common.light': 'Light',
   'common.dark': 'Dark',
+  'common.system': 'System',
+  'common.zhShort': 'ZH',
   'common.chinese': 'Simplified Chinese',
   'common.english': 'English',
   'common.enabled': 'Enabled',
@@ -668,6 +673,7 @@ const EN_TEXT: Record<string, string> = {
   'settings.title': 'System Settings',
   'settings.appearance': 'Appearance & Language',
   'settings.language': 'Language',
+  'settings.languageSystemSub': 'Follow system · ',
   'settings.theme': 'Theme',
   'settings.fontSize': 'Font Size',
   'settings.fontMedium': 'Medium',
@@ -1066,7 +1072,7 @@ const EN_TEXT: Record<string, string> = {
 
 export class I18n {
   static t(language: string, key: string): string {
-    const table: Record<string, string> = language === LANG_EN ? EN_TEXT : ZH_TEXT;
+    const table: Record<string, string> = resolveEffectiveLanguage(language) === LANG_EN ? EN_TEXT : ZH_TEXT;
     if (table[key] !== undefined) {
       return table[key];
     }

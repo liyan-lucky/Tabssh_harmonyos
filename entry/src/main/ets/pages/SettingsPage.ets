@@ -5,6 +5,7 @@ import { AppTheme } from '../common/AppTheme';
 import {
   AppSettingsRepository,
   LANG_EN,
+  LANG_SYSTEM,
   LANG_ZH,
   THEME_DARK,
   THEME_LIGHT
@@ -73,6 +74,16 @@ struct SettingsPage {
     this.language = language;
     AppSettingsRepository.setLanguage(language);
     this.toast(I18n.t(language, 'settings.languageToast'));
+  }
+
+  private languageSummaryText(): string {
+    const effectiveLanguage: string = AppSettingsRepository.effectiveLanguage(this.language);
+    const effectiveName: string = I18n.t(effectiveLanguage,
+      effectiveLanguage === LANG_EN ? 'common.english' : 'common.chinese');
+    if (this.language === LANG_SYSTEM) {
+      return this.t('settings.languageSystemSub') + effectiveName;
+    }
+    return effectiveName;
   }
 
   @Builder
@@ -179,15 +190,18 @@ struct SettingsPage {
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.textPrimary())
-          Text(this.language === LANG_EN ? this.t('common.english') : this.t('common.chinese'))
+          Text(this.languageSummaryText())
             .fontSize(12)
             .fontColor(this.textSecond())
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
-        Row({ space: 8 }) {
-          this.SegmentButton('中文', this.language !== LANG_EN, 58, () => this.setLanguage(LANG_ZH))
-          this.SegmentButton('EN', this.language === LANG_EN, 58, () => this.setLanguage(LANG_EN))
+        Row({ space: 6 }) {
+          this.SegmentButton(this.t('common.system'), this.language === LANG_SYSTEM, 60,
+            () => this.setLanguage(LANG_SYSTEM))
+          this.SegmentButton(this.t('common.zhShort'), this.language === LANG_ZH, 44,
+            () => this.setLanguage(LANG_ZH))
+          this.SegmentButton('EN', this.language === LANG_EN, 44, () => this.setLanguage(LANG_EN))
         }
       }
       .width('100%')
