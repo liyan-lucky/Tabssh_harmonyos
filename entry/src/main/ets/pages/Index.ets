@@ -191,11 +191,11 @@ struct Index {
   }
 
   private headerOverlayHeight(): number {
-    return this.avoidStatusBarHeight + 104;
+    return this.avoidStatusBarHeight + 76;
   }
 
   private contentTopInset(): number {
-    return this.headerOverlayHeight() + 8;
+    return this.headerOverlayHeight() - 14;
   }
 
   private openToolboxPage(): void {
@@ -464,8 +464,8 @@ struct Index {
           .colorFilter(createIconColorFilter(this.textSecond()))
       }
       .width('100%')
-      .height(72)
-      .padding({ left: 22, right: 22, top: 8 })
+      .height(56)
+      .padding({ left: 22, right: 22, top: 0 })
     } else {
       Row() {
         Blank().layoutWeight(1)
@@ -505,8 +505,8 @@ struct Index {
         .layoutWeight(1)
       }
       .width('100%')
-      .height(64)
-      .padding({ left: 22, right: 22, top: 10 })
+      .height(52)
+      .padding({ left: 22, right: 22, top: 0 })
     }
   }
 

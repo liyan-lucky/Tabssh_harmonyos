@@ -154,6 +154,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-06-30 07:14 最新本地基线已推进到 Real HAP SHA256 `34A2CA50560F1BAE9662888216B2E287DC078B8E386A8E7659B954E753FC406C`。本轮参考 RustDesk HarmonyOS UI 文档修正主题色板，顶部 Logo/标题区改为半透明渐变过渡，底部 Tab 保留半透明 Thin blur 胶囊，并把连接编辑、终端、SFTP 和端口转发页接入浅色/深色与中文/English。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 108/108；x86_64 模拟器安装冷启动 PID `15229`，已取得首页最终截图 `screenshot_20260630_074325_home_theme_gradient_final.jpeg`。
 
+2026-06-30 15:28 最新本地基线已推进到 Real HAP SHA256 `9E2394A128527539E263F9C8CF35DB5954B2CCFBD609D66DD064634D5A95BB5A`。本轮按在线检查反馈收紧首页顶部和 Logo 区默认距离：`HeaderOverlay` 为 `avoidStatusBarHeight + 76`，内容顶部为 `headerOverlayHeight() - 14`，Header 行高和顶部 padding 已缩小。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9；x86_64 模拟器安装冷启动 PID `6767`，已取得首页紧凑顶部截图 `screenshot_20260630_152837_home_top_tighter.jpeg` 和层级 `layout_20260630_152837_home_top_tighter.json`，确认顶部贴近且第一张卡片未压住标题。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
