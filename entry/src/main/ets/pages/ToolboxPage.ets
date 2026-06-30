@@ -38,6 +38,14 @@ interface Ipv4Link {
   prefixLength: number;
 }
 
+interface QrMatrixResult {
+  version: number;
+  size: number;
+  dataCodewords: number;
+  eccCodewords: number;
+  lines: string[];
+}
+
 @Entry
 @Component
 struct ToolboxPage {
@@ -155,7 +163,7 @@ struct ToolboxPage {
       return 'https://www.example.com/';
     }
     if (toolKey === 'toolbox.nginx') {
-      return 'upstream app { server 10.0.0.2:8080; }\nserver { listen 80; server_name example.com; location / { proxy_pass http://app; } }';
+      return 'upstream app { server 10.0.0.2:8080; }\nset $target http://app;\ninclude conf.d/*.conf;\nserver { listen 80; server_name example.com; location / { proxy_pass $target; } }';
     }
     if (toolKey === 'toolbox.ping') {
       return 'www.example.com 443';
@@ -894,6 +902,57 @@ struct ToolboxPage {
       this.toolOutput = 'HTTP ' + response.responseCode.toString() +
         '\n' + this.t('toolbox.downloadedBytes') + bytes.toString() +
         '\n' + this.t('toolbox.elapsed') + elapsed.toString() + ' ms' +
+        '\n' + this.t('toolbox.throughput') + kbps.toString() + ' kbps';
+    } catch (error) {
+      this.toolOutput = this.t('toolbox.convertError') + this.errorMessage(error as Error);
+    } finally {
+      request.destroy();
+      this.networkInFlight = false;
+    }
+  }
+
+  private buildUploadPayload(bytes: number): string {
+    const chunk: string = 'OpenTabSsh-HarmonyOS-upload-sample-0123456789\n';
+    let output: string = '';
+    while (output.length < bytes) {
+      output += chunk;
+    }
+    return output.substring(0, bytes);
+  }
+
+  private async runUploadTest(): Promise<void> {
+    if (this.networkInFlight) {
+      return;
+    }
+    this.networkInFlight = true;
+    this.toolOutput = this.t('toolbox.running');
+    const request: http.HttpRequest = http.createHttp();
+    try {
+      const url: string = this.toolInput.trim();
+      if (!/^https?:\/\//i.test(url)) {
+        throw new Error(this.t('toolbox.urlInvalid'));
+      }
+      const payload: string = this.buildUploadPayload(65536);
+      const uploadBytes: number = this.utf8Bytes(payload).length;
+      const start: number = new Date().getTime();
+      const response: http.HttpResponse = await request.request(url, {
+        method: http.RequestMethod.POST,
+        expectDataType: http.HttpDataType.STRING,
+        extraData: payload,
+        readTimeout: 10000,
+        connectTimeout: 5000,
+        header: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'User-Agent': 'OpenTabSsh-HarmonyOS'
+        }
+      });
+      const elapsed: number = Math.max(1, new Date().getTime() - start);
+      const kbps: number = Math.round(uploadBytes * 8 / elapsed);
+      const responseBytes: number = this.responseBytes(response.result);
+      this.toolOutput = 'HTTP ' + response.responseCode.toString() +
+        '\n' + this.t('toolbox.uploadedBytes') + uploadBytes.toString() +
+        '\n' + this.t('toolbox.downloadedBytes') + responseBytes.toString() +
+        '\n' + this.t('toolbox.elapsed') + elapsed.toString() + ' ms' +
         '\n' + this.t('toolbox.throughput') + kbps.toString() + ' kbps' +
         '\n' + this.t('toolbox.uploadNote');
     } catch (error) {
@@ -925,6 +984,7 @@ struct ToolboxPage {
         lines.push(this.t('toolbox.linkAddresses') + this.formatLinkAddresses(properties.linkAddresses));
         lines.push('DNS: ' + this.formatNetAddresses(properties.dnses));
         lines.push(this.t('toolbox.gateway') + this.formatGateways(properties.routes));
+        lines.push(this.t('toolbox.routes') + this.formatRoutes(properties.routes));
       }
       lines.push(this.t('toolbox.ipNoteResolved'));
       this.toolOutput = lines.join('\n');
@@ -948,13 +1008,27 @@ struct ToolboxPage {
     return values.length > 0 ? values.join(', ') : this.t('toolbox.none');
   }
 
+  private formatAddressFamily(address: connection.NetAddress): string {
+    if (address.family === undefined) {
+      return 'family unknown';
+    }
+    if (address.family === 1) {
+      return 'IPv4';
+    }
+    if (address.family === 2) {
+      return 'IPv6';
+    }
+    return 'family ' + address.family.toString();
+  }
+
   private formatLinkAddresses(addresses: connection.LinkAddress[]): string {
     if (addresses.length === 0) {
       return this.t('toolbox.none');
     }
     const values: string[] = [];
     for (let i = 0; i < addresses.length; i++) {
-      values.push(addresses[i].address.address + '/' + addresses[i].prefixLength.toString());
+      values.push(addresses[i].address.address + '/' + addresses[i].prefixLength.toString() +
+        ' ' + this.formatAddressFamily(addresses[i].address));
     }
     return values.join(', ');
   }
@@ -967,6 +1041,19 @@ struct ToolboxPage {
       }
     }
     return values.length > 0 ? values.join(', ') : this.t('toolbox.none');
+  }
+
+  private formatRoutes(routes: connection.RouteInfo[]): string {
+    if (routes.length === 0) {
+      return this.t('toolbox.none');
+    }
+    const values: string[] = [];
+    for (let i = 0; i < routes.length && values.length < 8; i++) {
+      const gateway: string = routes[i].hasGateway && routes[i].gateway.address.length > 0 ?
+        routes[i].gateway.address : this.t('toolbox.none');
+      values.push('route' + (i + 1).toString() + ' gateway=' + gateway);
+    }
+    return values.join('; ');
   }
 
   private async showTopologySummary(): Promise<void> {
@@ -1019,11 +1106,20 @@ struct ToolboxPage {
     const listens: string[] = [];
     const serverNames: string[] = [];
     const upstreams: string[] = [];
+    const upstreamServers: string[] = [];
     const locations: string[] = [];
     const proxies: string[] = [];
+    const includes: string[] = [];
+    const variableNames: string[] = [];
+    const variableValues: string[] = [];
+    let currentUpstream: string = '';
     for (let i = 0; i < lines.length; i++) {
       const line: string = this.stripNginxComment(lines[i]);
       if (line.length === 0) {
+        continue;
+      }
+      if (line === '}') {
+        currentUpstream = '';
         continue;
       }
       if (/^server\s*\{/.test(line)) {
@@ -1032,6 +1128,11 @@ struct ToolboxPage {
       const upstream: RegExpMatchArray | null = line.match(/^upstream\s+([A-Za-z0-9_.-]+)/);
       if (upstream !== null) {
         upstreams.push(upstream[1]);
+        currentUpstream = upstream[1];
+      }
+      const upstreamServer: RegExpMatchArray | null = line.match(/^server\s+([^;]+)/);
+      if (upstreamServer !== null && currentUpstream.length > 0) {
+        upstreamServers.push(currentUpstream + ' -> ' + upstreamServer[1].trim());
       }
       const listen: RegExpMatchArray | null = line.match(/^listen\s+([^;]+)/);
       if (listen !== null) {
@@ -1045,18 +1146,51 @@ struct ToolboxPage {
       if (location !== null) {
         locations.push(location[1].trim());
       }
+      const include: RegExpMatchArray | null = line.match(/^include\s+([^;]+)/);
+      if (include !== null) {
+        includes.push(include[1].trim());
+      }
+      const variable: RegExpMatchArray | null = line.match(/^set\s+(\$[A-Za-z0-9_]+)\s+([^;]+)/);
+      if (variable !== null) {
+        variableNames.push(variable[1]);
+        variableValues.push(variable[2].trim());
+      }
       const proxy: RegExpMatchArray | null = line.match(/^proxy_pass\s+([^;]+)/);
       if (proxy !== null) {
-        proxies.push(proxy[1].trim());
+        const rawProxy: string = proxy[1].trim();
+        const expandedProxy: string = this.expandNginxVariables(rawProxy, variableNames, variableValues);
+        proxies.push(rawProxy === expandedProxy ? rawProxy : rawProxy + ' -> ' + expandedProxy);
       }
     }
     this.toolOutput = 'server blocks: ' + serverCount.toString() +
       '\nlisten: ' + this.joinOrNone(listens) +
       '\nserver_name: ' + this.joinOrNone(serverNames) +
       '\nupstream: ' + this.joinOrNone(upstreams) +
+      '\n' + this.t('toolbox.nginxUpstreamServers') + this.joinOrNone(upstreamServers) +
       '\nlocation: ' + this.joinOrNone(locations) +
       '\nproxy_pass: ' + this.joinOrNone(proxies) +
+      '\ninclude: ' + this.joinOrNone(includes) +
+      '\n' + this.t('toolbox.nginxVariables') + this.formatNginxVariables(variableNames, variableValues) +
       '\n' + this.t('toolbox.nginxNote');
+  }
+
+  private expandNginxVariables(value: string, names: string[], values: string[]): string {
+    let output: string = value;
+    for (let i = 0; i < names.length; i++) {
+      output = output.split(names[i]).join(values[i]);
+    }
+    return output;
+  }
+
+  private formatNginxVariables(names: string[], values: string[]): string {
+    if (names.length === 0) {
+      return this.t('toolbox.none');
+    }
+    const output: string[] = [];
+    for (let i = 0; i < names.length; i++) {
+      output.push(names[i] + '=' + values[i]);
+    }
+    return output.join(', ');
   }
 
   private joinOrNone(values: string[]): string {
@@ -1069,10 +1203,269 @@ struct ToolboxPage {
       this.toolOutput = this.t('toolbox.inputPlaceholder');
       return;
     }
-    this.toolOutput = this.t('toolbox.qrPayload') + payload +
-      '\n' + this.t('toolbox.textChars') + payload.length.toString() +
-      '\n' + this.t('toolbox.textBytes') + this.utf8Bytes(payload).length.toString() +
-      '\n' + this.t('toolbox.qrNote');
+    try {
+      const qr: QrMatrixResult = this.buildQrMatrix(payload);
+      this.toolOutput = this.t('toolbox.qrPayload') + payload +
+        '\n' + this.t('toolbox.textChars') + payload.length.toString() +
+        '\n' + this.t('toolbox.textBytes') + this.utf8Bytes(payload).length.toString() +
+        '\n' + this.t('toolbox.qrMatrix') + 'Version ' + qr.version.toString() + '-L Byte, ' +
+        qr.size.toString() + 'x' + qr.size.toString() +
+        '\n' + this.t('toolbox.qrCodewords') + qr.dataCodewords.toString() + ' data + ' +
+        qr.eccCodewords.toString() + ' ecc' +
+        '\n' + this.t('toolbox.qrLegend') +
+        '\n' + qr.lines.join('\n') +
+        '\n' + this.t('toolbox.qrNote');
+    } catch (error) {
+      this.toolOutput = this.t('toolbox.convertError') + this.errorMessage(error as Error);
+    }
+  }
+
+  private appendBits(bits: number[], value: number, length: number): void {
+    for (let i = length - 1; i >= 0; i--) {
+      bits.push((value >>> i) & 1);
+    }
+  }
+
+  private gfMul(left: number, right: number): number {
+    let x: number = left;
+    let y: number = right;
+    let output: number = 0;
+    while (y > 0) {
+      if ((y & 1) !== 0) {
+        output ^= x;
+      }
+      x <<= 1;
+      if ((x & 0x100) !== 0) {
+        x ^= 0x11D;
+      }
+      y >>>= 1;
+    }
+    return output & 0xFF;
+  }
+
+  private gfPow(power: number): number {
+    let output: number = 1;
+    for (let i = 0; i < power; i++) {
+      output = this.gfMul(output, 2);
+    }
+    return output;
+  }
+
+  private rsGenerator(degree: number): number[] {
+    let result: number[] = [1];
+    for (let i = 0; i < degree; i++) {
+      const next: number[] = [];
+      for (let j = 0; j < result.length + 1; j++) {
+        next.push(0);
+      }
+      const root: number = this.gfPow(i);
+      for (let j = 0; j < result.length; j++) {
+        next[j] ^= result[j];
+        next[j + 1] ^= this.gfMul(result[j], root);
+      }
+      result = next;
+    }
+    return result;
+  }
+
+  private reedSolomonRemainder(data: number[], degree: number): number[] {
+    const generator: number[] = this.rsGenerator(degree);
+    const message: number[] = [];
+    for (let i = 0; i < data.length; i++) {
+      message.push(data[i]);
+    }
+    for (let i = 0; i < degree; i++) {
+      message.push(0);
+    }
+    for (let i = 0; i < data.length; i++) {
+      const factor: number = message[i];
+      if (factor === 0) {
+        continue;
+      }
+      for (let j = 0; j < generator.length; j++) {
+        message[i + j] ^= this.gfMul(generator[j], factor);
+      }
+    }
+    return message.slice(message.length - degree);
+  }
+
+  private setQrFunctionModule(modules: boolean[][], reserved: boolean[][], row: number, col: number,
+    dark: boolean): void {
+    if (row < 0 || col < 0 || row >= modules.length || col >= modules.length) {
+      return;
+    }
+    modules[row][col] = dark;
+    reserved[row][col] = true;
+  }
+
+  private drawQrFinder(modules: boolean[][], reserved: boolean[][], row: number, col: number): void {
+    for (let dy = -1; dy <= 7; dy++) {
+      for (let dx = -1; dx <= 7; dx++) {
+        const r: number = row + dy;
+        const c: number = col + dx;
+        const inPattern: boolean = dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6;
+        const dark: boolean = inPattern && (dx === 0 || dx === 6 || dy === 0 || dy === 6 ||
+          (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4));
+        this.setQrFunctionModule(modules, reserved, r, c, dark);
+      }
+    }
+  }
+
+  private drawQrAlignment(modules: boolean[][], reserved: boolean[][], center: number): void {
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const distance: number = Math.max(Math.abs(dx), Math.abs(dy));
+        this.setQrFunctionModule(modules, reserved, center + dy, center + dx, distance === 0 || distance === 2);
+      }
+    }
+  }
+
+  private reserveQrFormatAreas(modules: boolean[][], reserved: boolean[][]): void {
+    const size: number = modules.length;
+    for (let i = 0; i <= 8; i++) {
+      this.setQrFunctionModule(modules, reserved, 8, i, false);
+      this.setQrFunctionModule(modules, reserved, i, 8, false);
+    }
+    for (let i = 0; i < 8; i++) {
+      this.setQrFunctionModule(modules, reserved, size - 1 - i, 8, false);
+    }
+    for (let i = 8; i < 15; i++) {
+      this.setQrFunctionModule(modules, reserved, 8, size - 15 + i, false);
+    }
+  }
+
+  private qrFormatBits(): number {
+    const data: number = (1 << 3);
+    let bits: number = data << 10;
+    for (let i = 14; i >= 10; i--) {
+      if (((bits >>> i) & 1) !== 0) {
+        bits ^= 0x537 << (i - 10);
+      }
+    }
+    return ((data << 10) | bits) ^ 0x5412;
+  }
+
+  private qrBit(value: number, index: number): boolean {
+    return ((value >>> index) & 1) !== 0;
+  }
+
+  private drawQrFormatBits(modules: boolean[][], reserved: boolean[][]): void {
+    const size: number = modules.length;
+    const bits: number = this.qrFormatBits();
+    for (let i = 0; i <= 5; i++) {
+      this.setQrFunctionModule(modules, reserved, 8, i, this.qrBit(bits, i));
+    }
+    this.setQrFunctionModule(modules, reserved, 8, 7, this.qrBit(bits, 6));
+    this.setQrFunctionModule(modules, reserved, 8, 8, this.qrBit(bits, 7));
+    this.setQrFunctionModule(modules, reserved, 7, 8, this.qrBit(bits, 8));
+    for (let i = 9; i < 15; i++) {
+      this.setQrFunctionModule(modules, reserved, 14 - i, 8, this.qrBit(bits, i));
+    }
+    for (let i = 0; i < 8; i++) {
+      this.setQrFunctionModule(modules, reserved, size - 1 - i, 8, this.qrBit(bits, i));
+    }
+    for (let i = 8; i < 15; i++) {
+      this.setQrFunctionModule(modules, reserved, 8, size - 15 + i, this.qrBit(bits, i));
+    }
+  }
+
+  private buildQrMatrix(payload: string): QrMatrixResult {
+    const bytes: number[] = this.utf8Bytes(payload);
+    if (bytes.length > 32) {
+      throw new Error(this.t('toolbox.qrTooLong'));
+    }
+    const version: number = 2;
+    const size: number = 25;
+    const dataCodewords: number = 34;
+    const eccCodewords: number = 10;
+    const dataBits: number[] = [];
+    this.appendBits(dataBits, 0x4, 4);
+    this.appendBits(dataBits, bytes.length, 8);
+    for (let i = 0; i < bytes.length; i++) {
+      this.appendBits(dataBits, bytes[i], 8);
+    }
+    const capacityBits: number = dataCodewords * 8;
+    const terminator: number = Math.min(4, capacityBits - dataBits.length);
+    this.appendBits(dataBits, 0, terminator);
+    while (dataBits.length % 8 !== 0) {
+      dataBits.push(0);
+    }
+    const data: number[] = [];
+    for (let i = 0; i < dataBits.length; i += 8) {
+      let value: number = 0;
+      for (let j = 0; j < 8; j++) {
+        value = (value << 1) | dataBits[i + j];
+      }
+      data.push(value);
+    }
+    const pads: number[] = [0xEC, 0x11];
+    let padIndex: number = 0;
+    while (data.length < dataCodewords) {
+      data.push(pads[padIndex % 2]);
+      padIndex++;
+    }
+    const ecc: number[] = this.reedSolomonRemainder(data, eccCodewords);
+    const codewords: number[] = data.concat(ecc);
+    const bits: number[] = [];
+    for (let i = 0; i < codewords.length; i++) {
+      this.appendBits(bits, codewords[i], 8);
+    }
+    const modules: boolean[][] = [];
+    const reserved: boolean[][] = [];
+    for (let row = 0; row < size; row++) {
+      const moduleRow: boolean[] = [];
+      const reservedRow: boolean[] = [];
+      for (let col = 0; col < size; col++) {
+        moduleRow.push(false);
+        reservedRow.push(false);
+      }
+      modules.push(moduleRow);
+      reserved.push(reservedRow);
+    }
+    this.drawQrFinder(modules, reserved, 0, 0);
+    this.drawQrFinder(modules, reserved, 0, size - 7);
+    this.drawQrFinder(modules, reserved, size - 7, 0);
+    for (let i = 8; i < size - 8; i++) {
+      this.setQrFunctionModule(modules, reserved, 6, i, i % 2 === 0);
+      this.setQrFunctionModule(modules, reserved, i, 6, i % 2 === 0);
+    }
+    this.drawQrAlignment(modules, reserved, 18);
+    this.setQrFunctionModule(modules, reserved, 4 * version + 9, 8, true);
+    this.reserveQrFormatAreas(modules, reserved);
+    let bitIndex: number = 0;
+    let upward: boolean = true;
+    for (let col = size - 1; col >= 1; col -= 2) {
+      if (col === 6) {
+        col--;
+      }
+      for (let rowOffset = 0; rowOffset < size; rowOffset++) {
+        const row: number = upward ? size - 1 - rowOffset : rowOffset;
+        for (let c = 0; c < 2; c++) {
+          const x: number = col - c;
+          if (reserved[row][x]) {
+            continue;
+          }
+          let dark: boolean = bitIndex < bits.length && bits[bitIndex] === 1;
+          bitIndex++;
+          if ((row + x) % 2 === 0) {
+            dark = !dark;
+          }
+          modules[row][x] = dark;
+        }
+      }
+      upward = !upward;
+    }
+    this.drawQrFormatBits(modules, reserved);
+    const output: string[] = [];
+    for (let row = -4; row < size + 4; row++) {
+      let line: string = '';
+      for (let col = -4; col < size + 4; col++) {
+        const dark: boolean = row >= 0 && row < size && col >= 0 && col < size && modules[row][col];
+        line += dark ? '##' : '..';
+      }
+      output.push(line);
+    }
+    return { version: version, size: size, dataCodewords: dataCodewords, eccCodewords: eccCodewords, lines: output };
   }
 
   @Builder
@@ -1353,6 +1746,7 @@ struct ToolboxPage {
               this.ActionButton('lb -> kg', this.unitMode === 'lb_kg', () => this.convertUnit('lb_kg'))
             } else if (this.activeToolKey === 'toolbox.speed') {
               this.ActionButton(this.t('toolbox.downloadTest'), this.networkInFlight, () => this.runSpeedTest())
+              this.ActionButton(this.t('toolbox.uploadTest'), this.networkInFlight, () => this.runUploadTest())
             } else if (this.activeToolKey === 'toolbox.nginx') {
               this.ActionButton(this.t('toolbox.analyze'), false, () => this.analyzeNginxConfig())
             } else if (this.activeToolKey === 'toolbox.ping') {

@@ -150,6 +150,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-06-30 22:00 最新本地基线已推进到 Real HAP SHA256 `F9A480A234589F180410976636DCB88B91E11CE2F0F1226CC3A2FD9090947585`。本轮继续压缩首页顶部和 Logo 区默认距离，同时保留最小状态栏避让：`HeaderOverlay` 为 `headerStatusInset() + 48`，状态栏占位为 `Math.max(24, avoidStatusBarHeight - 18)`，内容顶部为 `Math.max(32, headerOverlayHeight() - 40)`，普通 Header 行高 40、监控 Header 行高 46；并修复 Nginx 单行样例解析。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 119/119；x86_64 模拟器安装冷启动 PID `10457`，首页层级 `layout_20260630_220033_home_header_safe_flush.json` 显示首个主机卡片 bounds `[53,161][1267,714]`，“主机列表”文本 bounds `[102,210][354,284]`；工具箱 `layout_20260630_214125_toolbox_nginx_inline_result.json` 显示 `listen/server_name/location/proxy_pass` 已从默认 Nginx 样例中解析出来，`layout_20260630_214125_toolbox_qr_payload_result.json` 显示 QR 负载摘要可输出。
 
+2026-06-30 22:30 最新本地基线已推进到 Real HAP SHA256 `7947F63EB123D386BB4B5D858B6A5D9C3F348020E1B38F7D73DF2A514F3C4DB1`。本轮继续补工具箱：上传测速使用纯 HarmonyOS `@ohos.net.http` POST 64 KiB 文本样本；Nginx 摘要新增同输入变量展开、include 检出和 upstream server；二维码工具新增纯 ArkTS QR Version 2-L Byte 矩阵；IP 详情源码新增路由和地址族字段。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 123/123；x86_64 模拟器安装冷启动 PID `30385`。设备证据 `layout_20260630_223018_toolbox_upload_result.json` 显示上传字节 `65536`、耗时 `2967 ms` 和吞吐 `177 kbps`；`layout_20260630_223018_toolbox_nginx_expanded_result.json` 显示 `$target -> http://app`、`include: conf.d/*.conf` 和 `upstream server`；`layout_20260630_223018_toolbox_qr_matrix_result.json` / `screenshot_20260630_223018_toolbox_qr_matrix_result.jpeg` 显示 `Version 2-L Byte, 25x25` QR 矩阵。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
@@ -158,7 +160,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 访问日志真实连接事件写入、清空、导出文件写入/回读和隐私字段审计证据；分组变更摘要基础跨重启、导出选择器唤起和筛选空状态已通过。
 - 连接历史真实成功/失败数据、点击行进入终端和跨重启统计回显。
 - 连接导入导出真实文件写入/回读、真实 OpenSSH/JSON 样本导入落库、跨重启回显、加密 ZIP、QR 配对和冲突合并。
-- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要已有 Real HAP 输出；上传测速、特权 ICMP、二维码图片矩阵、更多网卡字段和复杂 Nginx include/变量展开仍未完成。
+- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、Nginx 摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵已有 Real HAP 输出；特权 ICMP 或等价验收说明、二维码图片保存/美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开仍未完成。
 - 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已完成设置 Tab 点击和强停重启回显；仍需多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
 - 全屏避让的横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵；单台 x86_64 模拟器多页抽样已通过。
 - 非空分组迁移和拖拽排序。
