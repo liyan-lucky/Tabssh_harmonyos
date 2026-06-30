@@ -447,6 +447,53 @@ struct ToolboxPage {
     this.showNetworkDetails();
   }
 
+  private async queryPublicIp(): Promise<void> {
+    if (this.networkInFlight) {
+      return;
+    }
+    this.networkInFlight = true;
+    this.toolOutput = this.t('toolbox.running');
+    const services: string[] = ['https://api.ipify.org', 'https://ifconfig.me/ip'];
+    const failures: string[] = [];
+    try {
+      for (let i = 0; i < services.length; i++) {
+        const request: http.HttpRequest = http.createHttp();
+        try {
+          const response: http.HttpResponse = await request.request(services[i], {
+            method: http.RequestMethod.GET,
+            expectDataType: http.HttpDataType.STRING,
+            readTimeout: 8000,
+            connectTimeout: 5000,
+            header: {
+              'User-Agent': 'OpenTabSsh-HarmonyOS'
+            }
+          });
+          const responseText: string = this.responseToString(response.result);
+          const publicIp: string = this.extractIpAddress(responseText);
+          if (response.responseCode >= 200 && response.responseCode < 300 && publicIp.length > 0) {
+            const hasDefaultNet: boolean = await connection.hasDefaultNet();
+            this.toolOutput = this.t('toolbox.publicIp') + publicIp +
+              '\n' + this.t('toolbox.publicIpSource') + services[i] +
+              '\nHTTP ' + response.responseCode.toString() +
+              '\n' + this.t('toolbox.defaultNet') +
+              (hasDefaultNet ? this.t('common.enabled') : this.t('common.disabled')) +
+              '\n' + this.t('toolbox.publicIpNote');
+            return;
+          }
+          failures.push(services[i] + ' HTTP ' + response.responseCode.toString() + ' ' +
+            this.t('toolbox.publicIpInvalid'));
+        } catch (error) {
+          failures.push(services[i] + ' ' + this.errorMessage(error as Error));
+        } finally {
+          request.destroy();
+        }
+      }
+      this.toolOutput = this.t('toolbox.convertError') + failures.join('\n');
+    } finally {
+      this.networkInFlight = false;
+    }
+  }
+
   private parseEndpoint(input: string, defaultPorts: number[]): ParsedEndpoint {
     const normalized: string = input.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     if (normalized.length === 0) {
@@ -663,6 +710,33 @@ struct ToolboxPage {
       return result.byteLength;
     }
     return this.utf8Bytes(JSON.stringify(result)).length;
+  }
+
+  private responseToString(result: string | Object | ArrayBuffer): string {
+    if (typeof result === 'string') {
+      return result;
+    }
+    if (result instanceof ArrayBuffer) {
+      const view: Uint8Array = new Uint8Array(result);
+      const bytes: number[] = [];
+      for (let i = 0; i < view.length; i++) {
+        bytes.push(view[i]);
+      }
+      return this.textFromUtf8(bytes);
+    }
+    return JSON.stringify(result);
+  }
+
+  private extractIpAddress(text: string): string {
+    const ipv4Match: RegExpMatchArray | null = text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+    if (ipv4Match !== null && this.isIpv4Literal(ipv4Match[0])) {
+      return ipv4Match[0];
+    }
+    const ipv6Match: RegExpMatchArray | null = text.match(/\b[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{0,4}){2,7}\b/);
+    if (ipv6Match !== null && this.isIpv6Literal(ipv6Match[0])) {
+      return ipv6Match[0];
+    }
+    return '';
   }
 
   private async runSpeedTest(): Promise<void> {
@@ -1118,6 +1192,7 @@ struct ToolboxPage {
               this.ActionButton(this.t('toolbox.refresh'), false, () => this.showStorageInfo())
             } else if (this.activeToolKey === 'toolbox.ipInfo') {
               this.ActionButton(this.t('toolbox.refresh'), false, () => this.showIpInfo())
+              this.ActionButton(this.t('toolbox.publicIpButton'), this.networkInFlight, () => this.queryPublicIp())
             } else {
               this.ActionButton(this.t('toolbox.refresh'), false, () => this.showTopologySummary())
             }

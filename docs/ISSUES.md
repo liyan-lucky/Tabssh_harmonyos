@@ -48,11 +48,11 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 ## P1：工具箱页网络类工具仍未全量完成
 
-2026-06-29 新增 `ToolboxPage` 并从工作台右上角接入，工作台右上角不再打开系统设置；2026-06-30 第四 Tab 已改为“设置”，工具箱入口迁移为“设置 / 工具 / 工具箱”。页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、全部/网络/系统/开发分类和工具卡片，并通过 Mock/Real HAP 构建、安装和页面层级抽样。同日已补首批纯 ArkTS 工具能力：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息和访问审计跳转，并在 Real HAP 上取得 JSON 与 Encoding 工具面板输出证据。随后继续使用纯 HarmonyOS API 接入默认网络/DNS/网关摘要、TCP 连通性探测、端口扫描、HTTP 下载样本测速、Nginx 配置摘要和 QR 负载摘要；最新 Real HAP 已取得网络拓扑默认网络输出和 `127.0.0.1 22,80,443` 端口扫描结果。仍缺 HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要的设备点击证据，也未实现主动子网发现、上传测速、特权 ICMP、二维码图片矩阵/美化、公网 IP、更多网卡字段和复杂 Nginx include/变量展开。经验总结：网络工具能返回基础结果不等于 Android 工具箱全功能完成，必须按真实 API/结果逐项验收。
+2026-06-29 新增 `ToolboxPage` 并从工作台右上角接入，工作台右上角不再打开系统设置；2026-06-30 第四 Tab 已改为“设置”，工具箱入口迁移为“设置 / 工具 / 工具箱”。页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、全部/网络/系统/开发分类和工具卡片，并通过 Mock/Real HAP 构建、安装和页面层级抽样。同日已补首批纯 ArkTS 工具能力：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息和访问审计跳转，并在 Real HAP 上取得 JSON 与 Encoding 工具面板输出证据。随后继续使用纯 HarmonyOS API 接入默认网络/DNS/网关摘要、TCP 连通性探测、端口扫描、HTTP 下载样本测速、Nginx 配置摘要、QR 负载摘要和公网 IP；最新 Real HAP 已取得网络拓扑默认网络输出、`127.0.0.1 22,80,443` 端口扫描结果和公网 IP `HTTP 200` 输出（公网地址只在文档中写 `<redacted>`）。仍缺 HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要的设备点击证据，也未实现主动子网发现、上传测速、特权 ICMP、二维码图片矩阵/美化、更多网卡字段和复杂 Nginx include/变量展开。经验总结：网络工具能返回基础结果不等于 Android 工具箱全功能完成，必须按真实 API/结果逐项验收。
 
 ## P1：主题与多语言仍未全局覆盖
 
-2026-06-29 新增 `AppSettings`、`AppTheme` 和 `I18n`，设置页支持浅色/深色主题和中文/English 切换，偏好通过 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面刷新。此前曾因 `@StorageProp` 只单向读取导致设置页英文局部不刷新，已改为 `@StorageLink` 并在设置动作中同步本地状态。2026-06-30 最新 Real HAP 已把主题/语言覆盖扩展到首页、设置 Tab、设置页、工具箱、关于、终端设置、连接历史、连接分组、导入导出、访问日志、连接编辑、终端、SFTP 和端口转发；系统语言跟随已用 `@ohos.i18n` 实现并通过设置 Tab 点击与强停重启回显验证，全局审计 119/119。当前风险转为完整多页面切换矩阵、更多 service/audit 动态文案和无障碍/高对比验收。经验总结：主题/语言偏好存在不等于全局无障碍或国际化完成。
+2026-06-29 新增 `AppSettings`、`AppTheme` 和 `I18n`，设置页支持浅色/深色主题和中文/English 切换，偏好通过 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面刷新。此前曾因 `@StorageProp` 只单向读取导致设置页英文局部不刷新，已改为 `@StorageLink` 并在设置动作中同步本地状态。2026-06-30 最新 Real HAP 已把主题/语言覆盖扩展到首页、设置 Tab、设置页、工具箱、关于、终端设置、连接历史、连接分组、导入导出、访问日志、连接编辑、终端、SFTP 和端口转发；系统语言跟随已用 `@ohos.i18n` 实现并通过设置 Tab 点击与强停重启回显验证，全局审计 120/120。当前风险转为完整多页面切换矩阵、更多 service/audit 动态文案和无障碍/高对比验收。经验总结：主题/语言偏好存在不等于全局无障碍或国际化完成。
 
 ## P1：连接历史仍缺真实数据验收
 
@@ -68,7 +68,7 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 ## P1：全屏避让仍缺多设备矩阵
 
-2026-06-29 `EntryAbility` 已开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入页面 padding。所有已注册 ArkUI 页面已接入 `avoidStatusBarHeight` / `avoidNavigationBarHeight`，`audit_project.ps1` 也会逐页检查；最新 Real HAP 已抽样验证首页、设置 Tab、设置页、工具箱、终端设置、关于、连接页、连接编辑、SFTP 和端口转发页面。2026-06-30 底部 Tab 胶囊导航已修复主题色不随模式变化和位置过低的问题；顶部 Logo/标题区按 RustDesk HarmonyOS 文档改为半透明渐变过渡，并把 `contentTopInset()` 与 `headerOverlayHeight()` 分离，避免标题区压住第一张卡片。此前空白 overlay 阻断设置 Tab 滚动的问题已修复。但还没有横竖屏、不同导航模式、挖孔设备、Terminal 真实长会话、SFTP 长列表底部滚动和软键盘场景的矩阵证据。经验总结：顶部不能用整块高不透明毛玻璃，也不能让内容起点和标题控件争同一块空间；单一模拟器多页可见不等于全屏布局完成。
+2026-06-29 `EntryAbility` 已开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入页面 padding。所有已注册 ArkUI 页面已接入 `avoidStatusBarHeight` / `avoidNavigationBarHeight`，`audit_project.ps1` 也会逐页检查；最新 Real HAP 已抽样验证首页、设置 Tab、设置页、工具箱、终端设置、关于、连接页、连接编辑、SFTP 和端口转发页面。2026-06-30 底部 Tab 胶囊导航已修复主题色不随模式变化和位置过低的问题；顶部 Logo/标题区按 RustDesk HarmonyOS 文档改为半透明渐变过渡，并把 `contentTopInset()` 与 `headerOverlayHeight()` 分离，避免标题区压住第一张卡片；同日继续把 `HeaderOverlay` 收紧到 `headerStatusInset() + 64`，首页标题上沿已到 y=141。此前空白 overlay 阻断设置 Tab 滚动的问题已修复。但还没有横竖屏、不同导航模式、挖孔设备、Terminal 真实长会话、SFTP 长列表底部滚动和软键盘场景的矩阵证据。经验总结：顶部不能用整块高不透明毛玻璃，也不能让内容起点和标题控件争同一块空间；单一模拟器多页可见不等于全屏布局完成。
 
 ## P1：连接分组页仍缺完整设备点击验证
 

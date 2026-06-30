@@ -158,6 +158,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-06-30 15:43 最新本地基线已推进到 Real HAP SHA256 `A54EDDE5C4338B393952875A4BACA1AFD7A8D2E67ECBB5845F9A03823053DFED`。本轮补齐系统语言跟随：设置 Tab 语言分段为“系统 / 中 / EN”，系统选项通过 `@ohos.i18n` 解析首选语言并归一到中文/English。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 119/119；x86_64 模拟器安装冷启动 PID `17370`，点击“系统”后设置 Tab 显示“跟随系统 · 简体中文”，强停重启 PID `17427` 后仍回显。证据为 `layout_20260630_154312_settings_system_language_selected.json`、`screenshot_20260630_154312_settings_system_language_selected.jpeg` 和 `layout_20260630_154312_settings_system_language_after_restart.json`。
 
+2026-06-30 16:06 最新本地基线已推进到 Real HAP SHA256 `254DD95BD808D3E02CCB2608D6F556100F736107B4E08CCEADDA709F6DB8ABAA`。本轮继续压缩首页顶部 Logo/标题区默认距离：`HeaderOverlay` 改为 `headerStatusInset() + 64`，状态栏占位收紧到 `avoidStatusBarHeight - 10`，内容顶部为 `headerOverlayHeight() - 12`；同时为工具箱 IP 详情新增纯 HarmonyOS HTTP 公网 IP 查询。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 120/120；x86_64 模拟器安装冷启动 PID `2098`，首页层级 `layout_20260630_160625_home_header_tightest.json` 显示标题 y=141，公网 IP 证据 `layout_20260630_160625_toolbox_public_ip_result_attempt1.json` 显示 `公网 IP：<redacted> / 来源：https://ifconfig.me/ip / HTTP 200`。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
@@ -166,7 +168,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 访问日志真实连接事件写入、清空、导出文件写入/回读和隐私字段审计证据；分组变更摘要基础跨重启、导出选择器唤起和筛选空状态已通过。
 - 连接历史真实成功/失败数据、点击行进入终端和跨重启统计回显。
 - 连接导入导出真实文件写入/回读、真实 OpenSSH/JSON 样本导入落库、跨重启回显、加密 ZIP、QR 配对和冲突合并。
-- 工具箱剩余网络类能力：网络拓扑、默认网络信息和端口扫描已有 Real HAP 输出；HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要仍缺逐项点击证据；主动子网发现、上传测速、特权 ICMP、二维码图片矩阵、公网 IP、更多网卡字段和复杂 Nginx include/变量展开仍未完成。
+- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描和公网 IP 已有 Real HAP 输出；HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要仍缺逐项点击证据；主动子网发现、上传测速、特权 ICMP、二维码图片矩阵、更多网卡字段和复杂 Nginx include/变量展开仍未完成。
 - 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已完成设置 Tab 点击和强停重启回显；仍需多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
 - 全屏避让的横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵；单台 x86_64 模拟器多页抽样已通过。
 - 非空分组迁移和拖拽排序。
