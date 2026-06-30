@@ -12,7 +12,7 @@ body:
     attributes:
       label: Commit or release
       description: Commit SHA, branch, release tag, or artifact name.
-      placeholder: "e.g. 160061b... or opentabssh-harmonyos-arm64-v8a-unsigned-hap"
+      placeholder: "e.g. 160061b... or tabssh-hap"
     validations:
       required: true
   - type: dropdown

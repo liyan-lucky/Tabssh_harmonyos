@@ -5,7 +5,7 @@
 - `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接分组选择器和全屏避让，可把主机关联到分组，凭据仍只保留运行内存。
 - `entry/src/main/ets/entryability/EntryAbility.ets`：Stage 入口；初始化 RDB-backed 仓库，开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入 `AppStorage`。
 - `entry/src/main/ets/pages/Index.ets`：首页/工作台/连接/监控/设置主页面；连接页已接搜索、命中高亮、收藏、排序、分组筛选、批量操作和 `ConnectionGroupPage` 管理入口，工作台主机列表来自 RDB-backed 仓库，设置 Tab 已直接展开主题/语言、文件、缓存、终端、工具和关于分组，并读取全屏避让区 padding；顶部 Logo/标题区使用半透明紧凑渐变和 `headerStatusInset()` 贴近状态栏安全区。
-- `entry/src/main/ets/pages/ToolboxPage.ets`：工具箱页；工作台右上角和“设置 / 工具 / 工具箱”入口均进入该页，使用已登记 ProIcons 资源展示网络、系统、开发工具分类、搜索和本机信息卡；首批纯 ArkTS / 纯 HarmonyOS 工具已支持 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、公网 IP、访问审计跳转、默认网络/DNS/网关摘要、TCP 连通性、端口扫描、HTTP 下载样本测速、Nginx 配置摘要和 QR 负载摘要。
+- `entry/src/main/ets/pages/ToolboxPage.ets`：工具箱页；工作台右上角和“设置 / 工具 / 工具箱”入口均进入该页，使用已登记 ProIcons 资源展示网络、系统、开发工具分类、搜索和本机信息卡；首批纯 ArkTS / 纯 HarmonyOS 工具已支持 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、公网 IP、受控子网发现、访问审计跳转、默认网络/DNS/网关摘要、TCP 连通性、端口扫描、HTTP 下载样本测速、Nginx 配置摘要和 QR 负载摘要。
 - `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，使用 RDB-backed 仓库，支持新建、改名、换色、上移/下移、折叠和空分组处理，页面已注册路由并已从首页工作台/连接页接入，仍待完整设备点击和跨重启验证。
 - `entry/src/main/ets/pages/AuditLogPage.ets`：访问日志页；使用 RDB-backed 摘要日志，展示连接认证结果、批量操作和分组变更，不展示命令输出或凭据；支持 summary-only JSON 导出并唤起系统保存选择器，已从首页工作台入口接入，并随页面根容器接入全屏避让。
 - `entry/src/main/ets/pages/ConnectionHistoryPage.ets`：连接历史页；对齐 Android `ConnectionHistoryActivity` 的只读历史视图，基于 RDB profile 统计字段展示历史主机、成功主机、失败记录和最近连接摘要。
@@ -38,7 +38,6 @@
 - `scripts/update_build_info.ps1`：构建前刷新 `BuildInfo.ets`，从 `AppScope/app.json5` 读取版本并写入当前构建时间。
 - `scripts/install_and_smoke.ps1`：HAP 安装与冷启动冒烟工具；采集 bundle/PID/hilog/faultlogger/BuildInfo 线索，只证明安装启动和版本信息可读，不证明 SSH 功能。
 - `scripts/test_terminal_emulator.ps1`：不落盘产物的终端解析器内存回归。
-- `.github/workflows/online-build.yml`：纯 GitHub `ubuntu-latest` 手动 4-package HAP 格式构建入口，按 HarmonyOS/OpenHarmony 与 arm64-v8a/x86_64 矩阵验证 unsigned HAP zip 格式和单 ABI `libentry.so`。
 - `.github/workflows/build-harmonyos.yml`：手动 HarmonyOS HAP 构建与可选 Release 发布入口，通过 `HARMONYOS_SDK_TOKEN` 读取私有 SDK release，刷新 BuildInfo，产出 HAP、SHA256 和包清单，并可选择是否执行 HAP 包校验。
 - `.github/workflows/test-harmonyos-sdk-token.yml`：手动 SDK Token 预检 workflow，验证 `HARMONYOS_SDK_TOKEN` 能读取 SDK 仓库、Release 和指定 SDK 资产。
 - `.github/workflows/cleanup-releases.yml`：手动清理 Release、构建标签和旧 workflow run 的维护 workflow，带确认文本保护；只能用于明确的线上清理场景。

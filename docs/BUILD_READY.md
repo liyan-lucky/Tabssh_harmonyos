@@ -4,19 +4,15 @@
 
 ## 当前判断
 
-当前线上构建已经改为纯 GitHub 托管 Linux runner 的手动构建链路，并已对齐 `rustdesk_harmonyos` 的 Linux 构建结构。现在有两个主要入口：`online-build.yml` 做 4-package unsigned HAP 格式验证，`build-harmonyos.yml` 做 HAP 构建、BuildInfo 刷新、产物上传和可选 Release 发布。
+当前线上构建已经改为纯 GitHub 托管 Linux runner 的手动构建链路，并已对齐 `rustdesk_harmonyos` 的 Linux 构建结构。当前保留的主要入口是 `build-harmonyos.yml`：做 HAP 构建、BuildInfo 刷新、产物上传和可选 Release 发布；SDK Token 预检与线上清理由独立手动 workflow 承担。旧 `online-build.yml` 4-package 格式验证入口已由远端提交移除。
 
 原因：
 
-- `.github/workflows/online-build.yml` 现在只保留手动触发，按 HarmonyOS/OpenHarmony 与 arm64-v8a/x86_64 矩阵生成四个 unsigned HAP artifact。
 - `.github/workflows/build-harmonyos.yml` 现在只保留手动触发，通过 `HARMONYOS_SDK_TOKEN` 读取私有 SDK release，支持版本号处理、HAP 包校验开关和可选 Release。
 - 线上运行环境是 `ubuntu-latest`，不再依赖自托管 Windows runner。
 - workflow 使用 `harmonyos-dev/setup-harmonyos-sdk@0.2.1` 初始化 `/home/runner/harmonyos-sdk`。
-- `HARMONYOS_SDK_URL` 用于安装 full HarmonyOS SDK 到 `/home/runner/harmonyos-sdk`。
-- `HARMONYOS_FULL_URL` 用于替换 `/home/runner/harmonyos-sdk/command-line-tools/hvigor`。
 - `HARMONYOS_SDK_TOKEN` 用于 `build-harmonyos.yml` 和 `test-harmonyos-sdk-token.yml` 读取 `liyan-lucky/HarmonyOS_SDK_Tools` 的 SDK release 资产。
 - workflow 会设置 `DEVECO_TOOLS_ROOT`、`TABSSH_HWSDK_ROOT`、`HARMONYOS_SDK_DIR`、`HARMONYOS_NODE_DIR`、`PATH` 和 `LD_LIBRARY_PATH`。
-- `online-build.yml` 只执行 unsigned HAP 构建、HAP zip 格式检查、单 ABI `libentry.so` 检查和 artifact 上传。
 - `build-harmonyos.yml` 使用 `scripts/run_hvigor_with_sdk_patch.js` 构建，刷新 `BuildInfo.ets`，上传 HAP、SHA256、包清单和 `version.env`，并可在手动选择时创建 Release。
 - 线上静态审计、连接分组专项审计、安装冒烟、push/PR 自动触发仍暂时移除。
 - 没有新增签名材料、凭据、构建产物或原始日志。
@@ -26,20 +22,17 @@
 GitHub Actions 文件：
 
 - `.github/workflows/test-harmonyos-sdk-token.yml`：先验证 `HARMONYOS_SDK_TOKEN` 能读取私有 SDK 仓库、Release 和资产。
-- `.github/workflows/online-build.yml`：4-package unsigned HAP 格式验证，依赖 `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL`。
 - `.github/workflows/build-harmonyos.yml`：HAP 构建、BuildInfo 刷新、产物上传和可选 Release 发布，依赖 `HARMONYOS_SDK_TOKEN`。
 
 触发方式：
 
 1. GitHub → Actions → `测试 HarmonyOS SDK Token`，先确认 SDK token 和 release 资产可读。
-2. GitHub → Actions → `TabSSH Linux HAP 4-package build` 或 `构建并发布 HarmonyOS HAP`。
+2. GitHub → Actions → `构建并发布 HarmonyOS HAP`。
 3. 点击 `Run workflow`。
 4. 选择 `main`。
-5. 运行 4-package 格式验证前，在仓库 Secrets 或 Variables 设置 `HARMONYOS_SDK_URL` 和 `HARMONYOS_FULL_URL`。
-6. 运行发布构建前，在仓库 Secrets 设置 `HARMONYOS_SDK_TOKEN`。
-7. 4-package 格式验证可选填写 `sdk_sha256` 和 `full_sha256`，用于分别校验两个 SDK 包。
-8. 发布构建可选择版本号处理、是否跳过 HAP 包校验、是否创建 Release。
-9. 运行后下载 artifact：`opentabssh-harmonyos-arm64-v8a-unsigned-hap`、`opentabssh-harmonyos-x86_64-unsigned-hap`、`opentabssh-openharmony-arm64-v8a-unsigned-hap`、`opentabssh-openharmony-x86_64-unsigned-hap` 或 `tabssh-hap`。
+5. 运行发布构建前，在仓库 Secrets 设置 `HARMONYOS_SDK_TOKEN`。
+6. 发布构建可选择版本号处理、是否跳过 HAP 包校验、是否创建 Release。
+7. 运行后下载 artifact：`tabssh-hap`。
 
 当前 workflow 主要步骤：
 
@@ -48,21 +41,20 @@ GitHub Actions 文件：
 - `actions/setup-node@v4`，Node 20。
 - 安装 unzip / zip / curl / jq / python3 / rsync。
 - `harmonyos-dev/setup-harmonyos-sdk@0.2.1` 初始化基础 SDK。
-- 下载 `HARMONYOS_SDK_URL` 指向的 full SDK 包。
+- 通过 `HARMONYOS_SDK_TOKEN` 从私有 SDK release 下载 full SDK 包。
 - 把 `openharmony`、`hms`、`sdk-pkg.json` 规范化移动到 `/home/runner/harmonyos-sdk`。
-- 下载 `HARMONYOS_FULL_URL` 指向的 full hvigor 包。
+- 使用 SDK release 内的 full hvigor 包。
 - 替换 `/home/runner/harmonyos-sdk/command-line-tools/hvigor`。
 - 设置构建环境变量和 `local.properties`。
 - 执行 `node scripts/run_hvigor_with_sdk_patch.js assembleHap`。
 - 查找 `outputs` 下的 `.hap`。
 - 执行 `unzip -t` 校验 HAP zip 格式。
-- `online-build.yml` 检查每个 HAP 内只存在当前矩阵 ABI 的 `libentry.so`。
 - `build-harmonyos.yml` 可选执行 HAP zip 校验，并检查 HAP 内存在 arm64-v8a 与 x86_64 的 `libentry.so`。
 - 上传 HAP、SHA256 和 HAP 文件列表。
 
 ## SDK 包要求
 
-`HARMONYOS_SDK_URL` 解压后应能定位到：
+SDK release 中的 command line tool/full SDK 解压后应能定位到：
 
 ```text
 openharmony
@@ -70,18 +62,11 @@ hms 或 HarmonyOS-6.1.1
 sdk-pkg.json
 ```
 
-`HARMONYOS_FULL_URL` 解压后应能在 `command-line-tools` 下形成：
+full hvigor 解压后应能在 `command-line-tools` 下形成：
 
 ```text
 hvigor/bin/hvigorw.js
 hvigor/hvigor-ohos-plugin/node_modules/@ohos/hos-sdkmanager-common/build/src/hos/mapper/platform-sdks.js
-```
-
-仓库 Secrets 或 Variables：
-
-```text
-HARMONYOS_SDK_URL
-HARMONYOS_FULL_URL
 ```
 
 仓库 Secrets：
@@ -105,7 +90,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 ## 构建成功后再逐步加回
 
-必须先确认 SDK Token 预检、线上 Linux 4-package HAP 格式构建和发布构建最小路径通过，再按顺序恢复：
+必须先确认 SDK Token 预检和线上 Linux HAP 发布构建最小路径通过，再按顺序恢复：
 
 1. PowerShell 语法检查。
 2. `audit_project.ps1`。
@@ -122,11 +107,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 ### HAP 格式
 
 - Workflow 成功结束。
-- 4-package artifact 名称为 `opentabssh-harmonyos-arm64-v8a-unsigned-hap`、`opentabssh-harmonyos-x86_64-unsigned-hap`、`opentabssh-openharmony-arm64-v8a-unsigned-hap` 和 `opentabssh-openharmony-x86_64-unsigned-hap`。
 - 发布构建 artifact 名称为 `tabssh-hap`。
 - artifact 内存在 HAP、SHA256 和 HAP 文件列表。
 - HAP zip 格式通过 `unzip -t`。
-- 4-package HAP 内只含当前矩阵 ABI 的 `libentry.so`；发布构建 HAP 内含 arm64-v8a 与 x86_64 的 `libentry.so`。
+- 发布构建 HAP 内含 arm64-v8a 与 x86_64 的 `libentry.so`。
 
 ### 基础页面回归
 
@@ -160,6 +144,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-06-30 16:06 最新本地基线已推进到 Real HAP SHA256 `254DD95BD808D3E02CCB2608D6F556100F736107B4E08CCEADDA709F6DB8ABAA`。本轮继续压缩首页顶部 Logo/标题区默认距离：`HeaderOverlay` 改为 `headerStatusInset() + 64`，状态栏占位收紧到 `avoidStatusBarHeight - 10`，内容顶部为 `headerOverlayHeight() - 12`；同时为工具箱 IP 详情新增纯 HarmonyOS HTTP 公网 IP 查询。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 120/120；x86_64 模拟器安装冷启动 PID `2098`，首页层级 `layout_20260630_160625_home_header_tightest.json` 显示标题 y=141，公网 IP 证据 `layout_20260630_160625_toolbox_public_ip_result_attempt1.json` 显示 `公网 IP：<redacted> / 来源：https://ifconfig.me/ip / HTTP 200`。
 
+2026-06-30 16:23 最新本地基线已推进到 Real HAP SHA256 `927FD7B8B5030B43FFA2E86B6B1B1E6BE35C6CBE4FE9C3C1DE552B73C40A5C3B`。本轮为工具箱网络拓扑新增受控子网发现：默认 IPv4/CIDR 下最多探测 16 个候选主机，每台只检查 22/80/443。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 121/121；x86_64 模拟器安装冷启动 PID `14649`，证据 `layout_20260630_162351_toolbox_subnet_discovery_result.json` 显示 `发现范围：10.0.2.0/24 / 发现主机：1 / 10.0.2.2 -> 22/tcp 8 ms`。
+
+2026-06-30 16:49 最新本地基线已推进到 Real HAP SHA256 `16E26087577669659A7715071C2FDD9E7078F979EC897983D072CDF75F8C6FD4`。本轮把首页顶部 Logo/标题区进一步贴住安全区：`HeaderOverlay` 为 `headerStatusInset() + 56`，状态栏占位为 `avoidStatusBarHeight - 18`，内容顶部为 `headerOverlayHeight() - 20`，普通 Header 行高 44、监控 Header 行高 50；同时对齐远端删除旧 `online-build.yml` 后的审计和文档状态。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 119/119；x86_64 模拟器安装冷启动 PID `31110`，首页层级 `layout_20260630_164803_home_header_sticky.json` 显示“工作台”标题 bounds `[596,137][827,196]`，首个“主机列表”文本 bounds `[102,298][354,372]`，顶部贴近且未遮挡首块内容。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
@@ -168,7 +156,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 访问日志真实连接事件写入、清空、导出文件写入/回读和隐私字段审计证据；分组变更摘要基础跨重启、导出选择器唤起和筛选空状态已通过。
 - 连接历史真实成功/失败数据、点击行进入终端和跨重启统计回显。
 - 连接导入导出真实文件写入/回读、真实 OpenSSH/JSON 样本导入落库、跨重启回显、加密 ZIP、QR 配对和冲突合并。
-- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描和公网 IP 已有 Real HAP 输出；HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要仍缺逐项点击证据；主动子网发现、上传测速、特权 ICMP、二维码图片矩阵、更多网卡字段和复杂 Nginx include/变量展开仍未完成。
+- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP 和受控子网发现已有 Real HAP 输出；HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要仍缺逐项点击证据；上传测速、特权 ICMP、二维码图片矩阵、更多网卡字段和复杂 Nginx include/变量展开仍未完成。
 - 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已完成设置 Tab 点击和强停重启回显；仍需多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
 - 全屏避让的横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵；单台 x86_64 模拟器多页抽样已通过。
 - 非空分组迁移和拖拽排序。

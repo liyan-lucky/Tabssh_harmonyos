@@ -22,9 +22,9 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 2026-06-26 曾把线上构建误按自托管 Windows runner 设计，导致 workflow 长时间处于已列队状态。经验总结：纯 GitHub 在线构建必须使用 GitHub 托管 Linux runner，不能依赖自托管 runner 标签。
 
-2026-06-26 当前 `.github/workflows/online-build.yml` 已改为参考 `rustdesk_harmonyos` 成功结构：基础 SDK 初始化、full SDK 安装、full hvigor 替换、环境变量设置、Hvigor 构建、HAP zip 检查和 ABI `libentry.so` 检查。2026-06-30 远端新增 `.github/workflows/build-harmonyos.yml`、`.github/workflows/test-harmonyos-sdk-token.yml` 和 `.github/workflows/cleanup-releases.yml`；本轮已把发布构建 workflow 调整为稳定 action 版本、项目 SDK patch 脚本、BuildInfo 刷新、HAP/SHA256/包清单产物和可选 HAP 包校验。上述流程尚未在本仓库取得成功 run 证据；失败时优先查看 SDK Token 权限、SDK release 下载、SDK 定位、Hvigor 构建、HAP 包校验和 Release 上传六段日志。
+2026-06-30 远端已移除旧 `.github/workflows/online-build.yml` 4-package 格式验证入口，当前线上保留 `.github/workflows/build-harmonyos.yml`、`.github/workflows/test-harmonyos-sdk-token.yml` 和 `.github/workflows/cleanup-releases.yml`。本轮已把发布构建 workflow 调整为稳定 action 版本、项目 SDK patch 脚本、BuildInfo 刷新、HAP/SHA256/包清单产物和可选 HAP 包校验。上述流程尚未在本仓库取得成功 run 证据；失败时优先查看 SDK Token 权限、SDK release 下载、SDK 定位、Hvigor 构建、HAP 包校验和 Release 上传六段日志。
 
-2026-06-26 线上构建仍以手动触发为主，不自动响应 push/PR。经验总结：必须先让 SDK Token 预检、4-package HAP 格式构建和发布构建分别通过，再逐步加回 PowerShell/静态审计、分组专项审计、安装冒烟、Real HAP、签名包和 push/PR 自动检查，避免一次失败无法定位原因。`cleanup-releases.yml` 具备删除 Release、标签和 workflow run 的能力，只能在明确需要清理线上资产时手动运行。
+2026-06-26 线上构建仍以手动触发为主，不自动响应 push/PR。经验总结：必须先让 SDK Token 预检和发布构建最小路径分别通过，再逐步加回 PowerShell/静态审计、分组专项审计、安装冒烟、Real HAP、签名包和 push/PR 自动检查，避免一次失败无法定位原因。`cleanup-releases.yml` 具备删除 Release、标签和 workflow run 的能力，只能在明确需要清理线上资产时手动运行。
 
 ## P1：文档与配置曾不一致
 
@@ -48,11 +48,11 @@ read/write/resize/close/disconnect 现也已迁移到 async work，并在外部 
 
 ## P1：工具箱页网络类工具仍未全量完成
 
-2026-06-29 新增 `ToolboxPage` 并从工作台右上角接入，工作台右上角不再打开系统设置；2026-06-30 第四 Tab 已改为“设置”，工具箱入口迁移为“设置 / 工具 / 工具箱”。页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、全部/网络/系统/开发分类和工具卡片，并通过 Mock/Real HAP 构建、安装和页面层级抽样。同日已补首批纯 ArkTS 工具能力：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息和访问审计跳转，并在 Real HAP 上取得 JSON 与 Encoding 工具面板输出证据。随后继续使用纯 HarmonyOS API 接入默认网络/DNS/网关摘要、TCP 连通性探测、端口扫描、HTTP 下载样本测速、Nginx 配置摘要、QR 负载摘要和公网 IP；最新 Real HAP 已取得网络拓扑默认网络输出、`127.0.0.1 22,80,443` 端口扫描结果和公网 IP `HTTP 200` 输出（公网地址只在文档中写 `<redacted>`）。仍缺 HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要的设备点击证据，也未实现主动子网发现、上传测速、特权 ICMP、二维码图片矩阵/美化、更多网卡字段和复杂 Nginx include/变量展开。经验总结：网络工具能返回基础结果不等于 Android 工具箱全功能完成，必须按真实 API/结果逐项验收。
+2026-06-29 新增 `ToolboxPage` 并从工作台右上角接入，工作台右上角不再打开系统设置；2026-06-30 第四 Tab 已改为“设置”，工具箱入口迁移为“设置 / 工具 / 工具箱”。页面使用已登记 ProIcons rawfile 资产展示本机信息、搜索、全部/网络/系统/开发分类和工具卡片，并通过 Mock/Real HAP 构建、安装和页面层级抽样。同日已补首批纯 ArkTS 工具能力：JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息和访问审计跳转，并在 Real HAP 上取得 JSON 与 Encoding 工具面板输出证据。随后继续使用纯 HarmonyOS API 接入默认网络/DNS/网关摘要、TCP 连通性探测、端口扫描、HTTP 下载样本测速、Nginx 配置摘要、QR 负载摘要、公网 IP 和受控子网发现；最新 Real HAP 已取得网络拓扑默认网络输出、`127.0.0.1 22,80,443` 端口扫描结果、公网 IP `HTTP 200` 输出（公网地址只在文档中写 `<redacted>`）和 `10.0.2.0/24` 受控发现结果。仍缺 HTTP 下载测速、单项 TCP 连通性、Nginx 摘要和 QR 负载摘要的设备点击证据，也未实现上传测速、特权 ICMP、二维码图片矩阵/美化、更多网卡字段和复杂 Nginx include/变量展开。经验总结：网络工具能返回基础结果不等于 Android 工具箱全功能完成，必须按真实 API/结果逐项验收。
 
 ## P1：主题与多语言仍未全局覆盖
 
-2026-06-29 新增 `AppSettings`、`AppTheme` 和 `I18n`，设置页支持浅色/深色主题和中文/English 切换，偏好通过 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面刷新。此前曾因 `@StorageProp` 只单向读取导致设置页英文局部不刷新，已改为 `@StorageLink` 并在设置动作中同步本地状态。2026-06-30 最新 Real HAP 已把主题/语言覆盖扩展到首页、设置 Tab、设置页、工具箱、关于、终端设置、连接历史、连接分组、导入导出、访问日志、连接编辑、终端、SFTP 和端口转发；系统语言跟随已用 `@ohos.i18n` 实现并通过设置 Tab 点击与强停重启回显验证，全局审计 120/120。当前风险转为完整多页面切换矩阵、更多 service/audit 动态文案和无障碍/高对比验收。经验总结：主题/语言偏好存在不等于全局无障碍或国际化完成。
+2026-06-29 新增 `AppSettings`、`AppTheme` 和 `I18n`，设置页支持浅色/深色主题和中文/English 切换，偏好通过 HarmonyOS `preferences` 持久化，并用 `AppStorage` 驱动页面刷新。此前曾因 `@StorageProp` 只单向读取导致设置页英文局部不刷新，已改为 `@StorageLink` 并在设置动作中同步本地状态。2026-06-30 最新 Real HAP 已把主题/语言覆盖扩展到首页、设置 Tab、设置页、工具箱、关于、终端设置、连接历史、连接分组、导入导出、访问日志、连接编辑、终端、SFTP 和端口转发；系统语言跟随已用 `@ohos.i18n` 实现并通过设置 Tab 点击与强停重启回显验证，全局审计 121/121。当前风险转为完整多页面切换矩阵、更多 service/audit 动态文案和无障碍/高对比验收。经验总结：主题/语言偏好存在不等于全局无障碍或国际化完成。
 
 ## P1：连接历史仍缺真实数据验收
 

@@ -33,6 +33,11 @@ interface TcpProbeResult {
   detail: string;
 }
 
+interface Ipv4Link {
+  address: string;
+  prefixLength: number;
+}
+
 @Entry
 @Component
 struct ToolboxPage {
@@ -593,6 +598,19 @@ struct ToolboxPage {
     return host.indexOf(':') >= 0 && /^[0-9a-fA-F:]+$/.test(host);
   }
 
+  private ipv4ToNumber(address: string): number {
+    const parts: string[] = address.split('.');
+    return Number(parts[0]) * 16777216 + Number(parts[1]) * 65536 + Number(parts[2]) * 256 + Number(parts[3]);
+  }
+
+  private numberToIpv4(value: number): string {
+    const a: number = Math.floor(value / 16777216) % 256;
+    const b: number = Math.floor(value / 65536) % 256;
+    const c: number = Math.floor(value / 256) % 256;
+    const d: number = value % 256;
+    return a.toString() + '.' + b.toString() + '.' + c.toString() + '.' + d.toString();
+  }
+
   private addressFamily(host: string): number {
     return this.isIpv6Literal(host) ? 2 : 1;
   }
@@ -693,6 +711,118 @@ struct ToolboxPage {
         lines.push(result.port.toString() + '/tcp ' +
           (result.ok ? this.t('toolbox.tcpOpen') : this.t('toolbox.tcpClosed')) +
           ' ' + result.elapsedMs.toString() + ' ms');
+      }
+      this.toolOutput = lines.join('\n');
+    } catch (error) {
+      this.toolOutput = this.t('toolbox.convertError') + this.errorMessage(error as Error);
+    } finally {
+      this.networkInFlight = false;
+    }
+  }
+
+  private defaultIpv4Link(properties: connection.ConnectionProperties): Ipv4Link | undefined {
+    for (let i = 0; i < properties.linkAddresses.length; i++) {
+      const address: string = properties.linkAddresses[i].address.address;
+      const prefixLength: number = properties.linkAddresses[i].prefixLength;
+      if (this.isIpv4Literal(address) && prefixLength >= 16 && prefixLength <= 30) {
+        return { address: address, prefixLength: prefixLength };
+      }
+    }
+    return undefined;
+  }
+
+  private addSubnetCandidate(candidates: string[], host: string, localAddress: string, network: number,
+    blockSize: number): void {
+    if (!this.isIpv4Literal(host) || host === localAddress || candidates.indexOf(host) >= 0) {
+      return;
+    }
+    const value: number = this.ipv4ToNumber(host);
+    if (value <= network || value >= network + blockSize - 1) {
+      return;
+    }
+    candidates.push(host);
+  }
+
+  private subnetCandidates(properties: connection.ConnectionProperties, profiles: ConnectionProfile[]): string[] {
+    const link: Ipv4Link | undefined = this.defaultIpv4Link(properties);
+    if (link === undefined) {
+      return [];
+    }
+    const localValue: number = this.ipv4ToNumber(link.address);
+    const blockSize: number = Math.pow(2, 32 - link.prefixLength);
+    const network: number = Math.floor(localValue / blockSize) * blockSize;
+    const candidates: string[] = [];
+    for (let i = 0; i < properties.routes.length && candidates.length < 16; i++) {
+      if (properties.routes[i].hasGateway) {
+        this.addSubnetCandidate(candidates, properties.routes[i].gateway.address, link.address, network, blockSize);
+      }
+    }
+    for (let i = 0; i < properties.dnses.length && candidates.length < 16; i++) {
+      this.addSubnetCandidate(candidates, properties.dnses[i].address, link.address, network, blockSize);
+    }
+    for (let i = 0; i < profiles.length && candidates.length < 16; i++) {
+      this.addSubnetCandidate(candidates, profiles[i].host, link.address, network, blockSize);
+    }
+    const start: number = network + 1;
+    const end: number = network + blockSize - 2;
+    for (let value: number = start; value <= end && candidates.length < 16; value++) {
+      this.addSubnetCandidate(candidates, this.numberToIpv4(value), link.address, network, blockSize);
+    }
+    return candidates;
+  }
+
+  private subnetLabel(link: Ipv4Link): string {
+    const localValue: number = this.ipv4ToNumber(link.address);
+    const blockSize: number = Math.pow(2, 32 - link.prefixLength);
+    const network: number = Math.floor(localValue / blockSize) * blockSize;
+    return this.numberToIpv4(network) + '/' + link.prefixLength.toString();
+  }
+
+  private async discoverSubnet(): Promise<void> {
+    if (this.networkInFlight) {
+      return;
+    }
+    this.networkInFlight = true;
+    this.toolOutput = this.t('toolbox.running');
+    try {
+      const hasDefaultNet: boolean = await connection.hasDefaultNet();
+      if (!hasDefaultNet) {
+        this.toolOutput = this.t('toolbox.defaultNet') + this.t('common.disabled');
+        return;
+      }
+      const defaultNet: connection.NetHandle = await connection.getDefaultNet();
+      const properties: connection.ConnectionProperties = await connection.getConnectionProperties(defaultNet);
+      const link: Ipv4Link | undefined = this.defaultIpv4Link(properties);
+      if (link === undefined) {
+        this.toolOutput = this.t('toolbox.discoveryNoIpv4');
+        return;
+      }
+      const profiles: ConnectionProfile[] = ProfileRepository.list();
+      const candidates: string[] = this.subnetCandidates(properties, profiles);
+      const lines: string[] = [
+        this.t('toolbox.discoveryRange') + this.subnetLabel(link),
+        this.t('toolbox.interfaceName') + properties.interfaceName,
+        this.t('toolbox.discoveryLimit')
+      ];
+      let found: number = 0;
+      const ports: number[] = [22, 80, 443];
+      for (let i = 0; i < candidates.length; i++) {
+        const openPorts: string[] = [];
+        for (let p = 0; p < ports.length; p++) {
+          const result: TcpProbeResult = await this.probeTcp(candidates[i], ports[p], 600);
+          if (result.ok) {
+            openPorts.push(ports[p].toString() + '/tcp ' + result.elapsedMs.toString() + ' ms');
+          }
+        }
+        if (openPorts.length > 0) {
+          found++;
+          lines.push(candidates[i] + ' -> ' + openPorts.join(', '));
+        }
+      }
+      if (found === 0) {
+        lines.push(this.t('toolbox.discoveryNone'));
+      } else {
+        lines.splice(3, 0, this.t('toolbox.discoveryFound') + found.toString());
       }
       this.toolOutput = lines.join('\n');
     } catch (error) {
@@ -1195,6 +1325,7 @@ struct ToolboxPage {
               this.ActionButton(this.t('toolbox.publicIpButton'), this.networkInFlight, () => this.queryPublicIp())
             } else {
               this.ActionButton(this.t('toolbox.refresh'), false, () => this.showTopologySummary())
+              this.ActionButton(this.t('toolbox.discover'), this.networkInFlight, () => this.discoverSubnet())
             }
           }
           .width('100%')
