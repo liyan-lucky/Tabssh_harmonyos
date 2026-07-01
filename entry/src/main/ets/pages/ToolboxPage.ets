@@ -1,5 +1,8 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
+import picker from '@ohos.file.picker';
+import fs from '@ohos.file.fs';
+import common from '@ohos.app.ability.common';
 import socket from '@ohos.net.socket';
 import connection from '@ohos.net.connection';
 import http from '@ohos.net.http';
@@ -46,6 +49,16 @@ interface QrMatrixResult {
   lines: string[];
 }
 
+interface QrVisualCell {
+  key: string;
+  dark: boolean;
+}
+
+interface QrVisualRow {
+  key: string;
+  cells: QrVisualCell[];
+}
+
 @Entry
 @Component
 struct ToolboxPage {
@@ -54,6 +67,9 @@ struct ToolboxPage {
   @State activeToolKey: string = '';
   @State toolInput: string = '';
   @State toolOutput: string = '';
+  @State qrRows: QrVisualRow[] = [];
+  @State qrSvgText: string = '';
+  @State qrExporting: boolean = false;
   @State unitMode: string = 'm_ft';
   @State networkInFlight: boolean = false;
   @StorageProp('avoidStatusBarHeight') avoidStatusBarHeight: number = 0;
@@ -198,6 +214,8 @@ struct ToolboxPage {
     this.activeToolKey = item.titleKey;
     this.toolInput = this.defaultInputFor(item.titleKey);
     this.toolOutput = '';
+    this.qrRows = [];
+    this.qrSvgText = '';
     if (item.titleKey === 'toolbox.json') {
       this.formatJson(true);
     } else if (item.titleKey === 'toolbox.encode') {
@@ -233,6 +251,8 @@ struct ToolboxPage {
     this.activeToolKey = '';
     this.toolInput = '';
     this.toolOutput = '';
+    this.qrRows = [];
+    this.qrSvgText = '';
   }
 
   private errorMessage(error: Error): string {
@@ -1235,10 +1255,14 @@ struct ToolboxPage {
     const payload: string = this.toolInput.trim();
     if (payload.length === 0) {
       this.toolOutput = this.t('toolbox.inputPlaceholder');
+      this.qrRows = [];
+      this.qrSvgText = '';
       return;
     }
     try {
       const qr: QrMatrixResult = this.buildQrMatrix(payload);
+      this.qrRows = this.qrVisualRows(qr.lines);
+      this.qrSvgText = this.buildQrSvg(this.qrRows, payload, qr);
       this.toolOutput = this.t('toolbox.qrPayload') + payload +
         '\n' + this.t('toolbox.textChars') + payload.length.toString() +
         '\n' + this.t('toolbox.textBytes') + this.utf8Bytes(payload).length.toString() +
@@ -1250,7 +1274,139 @@ struct ToolboxPage {
         '\n' + qr.lines.join('\n') +
         '\n' + this.t('toolbox.qrNote');
     } catch (error) {
+      this.qrRows = [];
+      this.qrSvgText = '';
       this.toolOutput = this.t('toolbox.convertError') + this.errorMessage(error as Error);
+    }
+  }
+
+  private qrVisualRows(lines: string[]): QrVisualRow[] {
+    const rows: QrVisualRow[] = [];
+    for (let row = 0; row < lines.length; row++) {
+      const cells: QrVisualCell[] = [];
+      for (let col = 0; col < lines[row].length; col += 2) {
+        cells.push({
+          key: row.toString() + '-' + (col / 2).toString(),
+          dark: lines[row].substring(col, col + 2) === '##'
+        });
+      }
+      rows.push({ key: row.toString(), cells: cells });
+    }
+    return rows;
+  }
+
+  private escapeXml(value: string): string {
+    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+
+  private buildQrSvg(rows: QrVisualRow[], payload: string, qr: QrMatrixResult): string {
+    const moduleSize: number = 10;
+    const canvasSize: number = rows.length * moduleSize;
+    const darkColor: string = '#111827';
+    const finderColor: string = '#0A84FF';
+    const svgTag: string = 'svg';
+    const parts: string[] = [
+      '<' + svgTag + ' xmlns="http://www.w3.org/2000/svg" width="' + canvasSize.toString() + '" height="' +
+        canvasSize.toString() + '" viewBox="0 0 ' + canvasSize.toString() + ' ' + canvasSize.toString() +
+        '" role="img" aria-label="OpenTabSsh QR">',
+      '<title>OpenTabSsh QR</title>',
+      '<desc>' + this.escapeXml('Version ' + qr.version.toString() + '-L Byte: ' + payload) + '</desc>',
+      '<rect width="100%" height="100%" rx="18" fill="#FFFFFF"/>'
+    ];
+    for (let row = 0; row < rows.length; row++) {
+      for (let col = 0; col < rows[row].cells.length; col++) {
+        if (rows[row].cells[col].dark) {
+          const inFinder: boolean = (row >= 4 && row <= 10 && col >= 4 && col <= 10) ||
+            (row >= 4 && row <= 10 && col >= rows.length - 11 && col <= rows.length - 5) ||
+            (row >= rows.length - 11 && row <= rows.length - 5 && col >= 4 && col <= 10);
+          parts.push('<rect x="' + (col * moduleSize).toString() + '" y="' + (row * moduleSize).toString() +
+            '" width="' + moduleSize.toString() + '" height="' + moduleSize.toString() +
+            '" rx="1.8" fill="' + (inFinder ? finderColor : darkColor) + '"/>');
+        }
+      }
+    }
+    parts.push('</svg>');
+    return parts.join('\n');
+  }
+
+  private pad(value: number): string {
+    return value < 10 ? '0' + value.toString() : value.toString();
+  }
+
+  private qrSvgFileName(): string {
+    const date: Date = new Date();
+    return 'opentabssh-qr-' + date.getFullYear().toString() + this.pad(date.getMonth() + 1) +
+      this.pad(date.getDate()) + '-' + this.pad(date.getHours()) + this.pad(date.getMinutes()) + '.svg';
+  }
+
+  private async exportQrSvg(): Promise<void> {
+    if (this.qrExporting) {
+      return;
+    }
+    if (this.qrSvgText.length === 0) {
+      this.generateQrPayload();
+    }
+    if (this.qrSvgText.length === 0) {
+      return;
+    }
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const fileName: string = this.qrSvgFileName();
+    const cachePath: string = context.cacheDir + '/' + fileName;
+    this.qrExporting = true;
+    try {
+      const output: fs.File = fs.openSync(cachePath,
+        fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      try {
+        fs.writeSync(output.fd, this.qrSvgText);
+      } finally {
+        fs.closeSync(output);
+      }
+
+      const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+      const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+      options.newFileNames = [fileName];
+      const destinationUris: Array<string> = await documentPicker.save(options);
+      if (destinationUris.length === 0) {
+        promptAction.showToast({ message: this.t('toolbox.qrSvgCanceled'), duration: 1800 });
+        return;
+      }
+      const destination: fs.File = fs.openSync(destinationUris[0], fs.OpenMode.WRITE_ONLY);
+      try {
+        await fs.copyFile(cachePath, destination.fd);
+      } finally {
+        fs.closeSync(destination);
+      }
+      if (!await this.verifySavedText(destinationUris[0], this.qrSvgText, cachePath + '.verify')) {
+        promptAction.showToast({ message: this.t('toolbox.qrSvgVerifyFailed'), duration: 1800 });
+        return;
+      }
+      this.toolOutput = this.toolOutput + '\n' + this.t('toolbox.qrSvgSaved');
+      promptAction.showToast({ message: this.t('toolbox.qrSvgSaved'), duration: 1800 });
+    } catch (error) {
+      promptAction.showToast({ message: this.t('toolbox.qrSvgFailed'), duration: 1800 });
+    } finally {
+      if (fs.accessSync(cachePath)) {
+        fs.unlinkSync(cachePath);
+      }
+      this.qrExporting = false;
+    }
+  }
+
+  private async verifySavedText(uri: string, expected: string, verifyPath: string): Promise<boolean> {
+    const source: fs.File = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+    try {
+      await fs.copyFile(source.fd, verifyPath);
+    } finally {
+      fs.closeSync(source);
+    }
+    try {
+      const actual: string = fs.readTextSync(verifyPath);
+      return actual === expected;
+    } finally {
+      if (fs.accessSync(verifyPath)) {
+        fs.unlinkSync(verifyPath);
+      }
     }
   }
 
@@ -1722,6 +1878,45 @@ struct ToolboxPage {
   }
 
   @Builder
+  QrPreview() {
+    if (this.qrRows.length > 0) {
+      Column({ space: 10 }) {
+        Text(this.t('toolbox.qrPreview'))
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.textSecond())
+          .width('100%')
+
+        Column() {
+          ForEach(this.qrRows, (row: QrVisualRow) => {
+            Row() {
+              ForEach(row.cells, (cell: QrVisualCell) => {
+                Blank()
+                  .width(6)
+                  .height(6)
+                  .backgroundColor(cell.dark ? '#111827' : '#FFFFFF')
+              }, (cell: QrVisualCell) => cell.key)
+            }
+            .height(6)
+          }, (row: QrVisualRow) => row.key)
+        }
+        .padding(10)
+        .backgroundColor(Color.White)
+        .borderRadius(16)
+        .shadow({ radius: 6, color: '#22000000', offsetY: 2 })
+
+        Text(this.t('toolbox.qrSvgReady'))
+          .fontSize(12)
+          .fontColor(this.textMuted())
+          .textAlign(TextAlign.Center)
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
+      .padding({ top: 4, bottom: 4 })
+    }
+  }
+
+  @Builder
   ToolRunner() {
     if (this.activeToolKey.length > 0) {
       Column({ space: 12 }) {
@@ -1790,9 +1985,14 @@ struct ToolboxPage {
               this.ActionButton(this.t('toolbox.scan'), this.networkInFlight, () => this.runPortScan())
             } else if (this.activeToolKey === 'toolbox.qr') {
               this.ActionButton(this.t('toolbox.generate'), false, () => this.generateQrPayload())
+              this.ActionButton(this.t('toolbox.qrSaveSvg'), this.qrExporting, () => this.exportQrSvg())
             }
           }
           .width('100%')
+        }
+
+        if (this.activeToolKey === 'toolbox.qr') {
+          this.QrPreview()
         }
 
         Text(this.toolOutput.length > 0 ? this.toolOutput : this.t('toolbox.noOutput'))
