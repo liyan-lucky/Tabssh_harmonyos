@@ -4,7 +4,7 @@
 - `entry/src/main/ets/pages/`：ArkUI 页面集合。
 - `entry/src/main/ets/pages/ConnectionEditPage.ets`：连接新增/编辑页；当前已接分组选择器和全屏避让，可把主机关联到分组，凭据仍只保留运行内存。
 - `entry/src/main/ets/entryability/EntryAbility.ets`：Stage 入口；初始化 RDB-backed 仓库，开启全屏布局、透明系统栏、窗口隐私保护，并把系统/挖孔/手势避让区写入 `AppStorage`。
-- `entry/src/main/ets/pages/Index.ets`：首页/工作台/连接/监控/设置主页面；工作台主机区域只保留新增主机、已保存主机和连接历史入口，不再内联显示保存主机详情；连接页已移除 logo 下方 SSH/二进制横幅，并把原保存列表位置改为最近 10 条连接历史摘要；设置 Tab 已直接展开主题/语言、文件、缓存、终端、工具和关于分组，并读取全屏避让区 padding；顶部 Logo/标题区使用半透明紧凑渐变和 `headerStatusInset()` 贴近状态栏安全区。
+- `entry/src/main/ets/pages/Index.ets`：首页/工作台/连接/监控/设置主页面；工作台主机管理卡片左侧点击进入已保存主机独立页，右侧添加按钮保留原新增主机流程，卡片下方不再显示三个主机选项行，也不内联显示保存主机详情；连接页已移除 logo 下方 SSH/二进制横幅，并把原保存列表位置改为最近 10 条连接历史摘要；设置 Tab 已直接展开主题/语言、文件、缓存、终端、工具和关于分组，并读取全屏避让区 padding；顶部 Logo/标题区使用半透明紧凑渐变和 `headerStatusInset()` 贴近状态栏安全区。
 - `entry/src/main/ets/pages/SavedHostsPage.ets`：已保存主机独立管理页面；承载搜索、分组筛选、排序、收藏、连接、编辑、批量收藏/移组/删除和 `profileRefreshToken` 变更刷新。
 - `entry/src/main/ets/pages/ToolboxPage.ets`：工具箱页；工作台右上角和“设置 / 工具 / 工具箱”入口均进入该页，使用已登记 ProIcons 资源展示网络、系统、开发工具分类、搜索和本机信息卡；首批纯 ArkTS / 纯 HarmonyOS 工具已支持 JSON 格式化/压缩、Base64 编解码、FNV-1a 快速校验、文本统计、颜色转换、单位换算、系统/存储/IP 基础信息、公网 IP、受控子网发现、访问审计跳转、默认网络/DNS/网关/路由/地址族摘要、TCP 连通性、ICMP 等价验收、端口扫描、HTTP 下载/上传测速、Nginx 配置摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵。
 - `entry/src/main/ets/pages/ConnectionGroupPage.ets`：连接分组管理页；保持现有白色圆角卡片、浅蓝背景和 ProIcons 风格，使用 RDB-backed 仓库，支持新建、改名、换色、上移/下移、折叠和空分组处理，页面已注册路由并已从首页工作台/连接页接入，仍待完整设备点击和跨重启验证。

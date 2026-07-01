@@ -123,7 +123,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 首页工作台“访问日志”入口能打开 `AuditLogPage`。
 - 首页工作台和连接页“导入导出”入口能打开 `ConnectionImportExportPage`。
 - 首页工作台右上角入口能打开 `ToolboxPage`，不再打开设置页。
-- 首页工作台不显示已保存主机的名称、地址、用户、端口或状态，只提供新增主机、已保存主机和连接历史等入口。
+- 首页工作台不显示已保存主机的名称、地址、用户、端口或状态；主机管理卡片左侧点击进入已保存主机列表，右侧添加按钮进入新增主机，卡片下方不再显示新增主机、已保存主机和连接历史三行入口。
 - 已保存主机完整列表进入 `SavedHostsPage` 独立页面，新增主机仍进入原 `ConnectionEditPage`；资料变更后通过刷新令牌更新入口计数和独立页列表。
 - 连接 Tab 不再显示完整保存列表，改为最近 10 条连接历史摘要，并提供完整历史入口。
 - “设置 / 工具 / 工具箱”入口能打开 `ToolboxPage`。
@@ -163,7 +163,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-07-01 05:05 最新本地基线已重建为 Real HAP SHA256 `C402EFED7D6A137E8190A613DC0821E621F8464D20C7A59D0C117980E8FF2FC4`。本轮针对工作台新增/编辑/删除或连接统计变更后必须切换 Tab 才刷新的问题，新增 `profileRefreshToken` 写入通知和首页 `@StorageLink` / `@Watch` reload，并把刷新令牌改为单调递增以覆盖快速连续写入；连接页去横幅与工具箱 ICMP 等价验收同步保留。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 125/125；覆盖安装冒烟通过 9/9，HAP 大小 `13,113,342` bytes，构建时间 `2026-07-01 05:03:31 +08:00`。新增层级证据为 `layout_20260701_050500_home_after_refresh_token_monotonic.json` 和 `layout_20260701_050500_connection_no_hero_after_refresh_token_monotonic.json`；同日 SSH 实测仍以 x86_64 hdc 目标证据为准，不能替代 arm64 真机验收。
 
-2026-07-01 08:49 最新本地基线已推进到 Real HAP SHA256 `D2648447E8D83A8192CF5EAC3B59AEA4FAB695710BECD4E6D7DA0F80A728817A`。本轮将工作台改为只显示主机管理入口，新增 `SavedHostsPage` 独立保存主机管理页，并把连接 Tab 的保存列表替换为最近 10 条历史摘要。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 128/128；覆盖安装冒烟通过 9/9，HAP 大小 `13,219,561` bytes，构建时间 `2026-07-01 08:48:19 +08:00`。设备层级证据为 `layout_20260701_083800_home_host_options.json`、`layout_20260701_083800_connection_recent_history.json` 和 `layout_20260701_083900_saved_hosts_page.json`；当前 hdc 目标仍为 x86_64/emulator 范畴，不能替代 arm64 真机验收。
+2026-07-01 09:12 最新本地基线已推进到 Real HAP SHA256 `10A1398261F2BF13502AE156FA02C94EAC9443459B76BF4A08E2C823041BC5E1`。本轮将工作台改为主机管理卡片直达 `SavedHostsPage`、右侧保留新增主机按钮，去掉卡片下方新增主机/已保存主机/连接历史三行入口；`SavedHostsPage` 独立保存主机管理页保留，并把连接 Tab 的保存列表替换为最近 10 条历史摘要。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 128/128；覆盖安装冒烟通过 9/9，HAP 大小 `13,219,896` bytes，构建时间 `2026-07-01 09:09:25 +08:00`。设备层级证据为 `layout_20260701_091135_home_host_management_single_entry.json`、`layout_20260701_091206_saved_hosts_from_host_management.json` 和 `layout_20260701_091227_add_from_host_management.json`；当前 hdc 目标仍为 x86_64/emulator 范畴，不能替代 arm64 真机验收。
 
 ## 当前不能判定完成
 

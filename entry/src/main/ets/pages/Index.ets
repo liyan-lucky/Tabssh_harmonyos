@@ -1092,17 +1092,35 @@ struct Index {
   WorkbenchHostOptions() {
     Column() {
       Row() {
-        Column({ space: 2 }) {
-          Text(this.t('workbench.hostOptions'))
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.textPrimary())
-          Text(this.t('workbench.hostOptions.subtitle'))
-            .fontSize(12)
-            .fontColor(this.textSecond())
+        Row({ space: 12 }) {
+          Row() {
+            Image($rawfile('settings_server.svg'))
+              .width(24)
+              .height(24)
+              .colorFilter(createIconColorFilter('#FFFFFF'))
+          }
+          .width(48)
+          .height(48)
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor('#2EA8E5')
+          .borderRadius(14)
+
+          Column({ space: 3 }) {
+            Text(this.t('workbench.hostOptions'))
+              .fontSize(18)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.textPrimary())
+            Text(this.profileCount.toString() + this.t('workbench.savedHostsCountSuffix'))
+              .fontSize(12)
+              .fontColor(this.textSecond())
+            Text(this.t('workbench.hostOptions.subtitle'))
+              .fontSize(11)
+              .fontColor(this.textMuted())
+          }
+          .alignItems(HorizontalAlign.Start)
         }
-        .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .onClick(() => this.openSavedHostsPage())
 
         Text(this.t('common.add'))
           .fontSize(13)
@@ -1113,17 +1131,7 @@ struct Index {
           .onClick(() => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
       }
       .width('100%')
-      .padding({ left: 14, right: 14, top: 14, bottom: 6 })
-
-      this.CompactOptionRow($rawfile('ft_new_folder.svg'), this.t('connections.sshHost'),
-        this.t('workbench.addHostSub'), '#0A84FF',
-        () => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
-      this.CompactOptionRow($rawfile('settings_server.svg'), this.t('connections.savedHosts'),
-        this.profileCount.toString() + this.t('workbench.savedHostsCountSuffix'), '#2EA8E5',
-        () => this.openSavedHostsPage())
-      this.CompactOptionRow($rawfile('settings_timer.svg'), this.t('workbench.history'),
-        this.recentProfiles.length.toString() + this.t('workbench.recentHistoryCountSuffix'), '#22C55E',
-        () => router.pushUrl({ url: 'pages/ConnectionHistoryPage' }), false)
+      .padding({ left: 14, right: 14, top: 14, bottom: 14 })
     }
     .width('92%')
     .backgroundColor(this.cardBg())
