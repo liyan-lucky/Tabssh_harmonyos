@@ -1550,22 +1550,26 @@ struct ToolboxPage {
       options.newFileNames = [fileName];
       const destinationUris: Array<string> = await documentPicker.save(options);
       if (destinationUris.length === 0) {
+        this.toolOutput = this.toolOutput + '\n' + this.t('toolbox.qrSvgCanceled');
         promptAction.showToast({ message: this.t('toolbox.qrSvgCanceled'), duration: 1800 });
         return;
       }
-      const destination: fs.File = fs.openSync(destinationUris[0], fs.OpenMode.WRITE_ONLY);
+      const destination: fs.File = fs.openSync(destinationUris[0],
+        fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       try {
-        await fs.copyFile(cachePath, destination.fd);
+        fs.writeSync(destination.fd, this.qrSvgText);
       } finally {
         fs.closeSync(destination);
       }
       if (!await this.verifySavedText(destinationUris[0], this.qrSvgText, cachePath + '.verify')) {
+        this.toolOutput = this.toolOutput + '\n' + this.t('toolbox.qrSvgVerifyFailed');
         promptAction.showToast({ message: this.t('toolbox.qrSvgVerifyFailed'), duration: 1800 });
         return;
       }
       this.toolOutput = this.toolOutput + '\n' + this.t('toolbox.qrSvgSaved');
       promptAction.showToast({ message: this.t('toolbox.qrSvgSaved'), duration: 1800 });
     } catch (error) {
+      this.toolOutput = this.toolOutput + '\n' + this.t('toolbox.qrSvgFailed');
       promptAction.showToast({ message: this.t('toolbox.qrSvgFailed'), duration: 1800 });
     } finally {
       if (fs.accessSync(cachePath)) {
