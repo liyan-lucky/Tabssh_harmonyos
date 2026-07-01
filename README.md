@@ -1,6 +1,10 @@
 # Tabssh_harmonyos
 
-OpenTabSsh 是面向 HarmonyOS 的原生 SSH 客户端工程，使用 ArkTS/ArkUI 与 Native C++ N-API。当前版本是可构建、可运行 UI 与 Mock Native Core 的工程骨架，不应被描述为真实 SSH 成品。
+OpenTabSsh 是面向 HarmonyOS / OpenHarmony 的原生 SSH 客户端工程，使用 ArkTS/ArkUI 与 Native C++ N-API。当前版本是可构建、可运行 UI 与 Mock Native Core 的工程骨架，不应被描述为真实 SSH 成品。
+
+## 当前状态
+
+当前事实以 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md) 为准。
 
 ## 当前边界
 
@@ -13,9 +17,15 @@ OpenTabSsh 是面向 HarmonyOS 的原生 SSH 客户端工程，使用 ArkTS/ArkU
 
 ## 接手入口
 
-新对话先完整读取 [AGENT_HANDOFF.md](docs/AGENT_HANDOFF.md)，再按 [文档索引](docs/README.md) 的必读顺序继续。所有构建、测试、日志、下载、备份和临时证据统一放在工作区共享的 `99_Temp`，详细职责见 [WORKSPACE_PATHS.md](docs/WORKSPACE_PATHS.md)。`99_Temp` 属于多个项目，禁止整体清空，任何 APK 一律不得删除。
+新对话先完整读取 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md) 和 [AGENT_HANDOFF.md](docs/AGENT_HANDOFF.md)，再按 [文档索引](docs/README.md) 的必读顺序继续。所有构建、测试、日志、下载、备份和临时证据统一放在工作区共享的 `99_Temp`，详细职责见 [WORKSPACE_PATHS.md](docs/WORKSPACE_PATHS.md)。`99_Temp` 属于多个项目，禁止整体清空，任何 APK 一律不得删除。
 
 中文项目说明见 [README_zh.md](README_zh.md)。
+
+## 分支和备份
+
+- `main`：当前主工作分支。
+- `backup`：`main` 的快照备份分支。
+- `.github/workflows/force-backup-main.yml`：手动输入 `YES` 后，把 `main` 当前提交强制覆盖到 `backup`。
 
 ## Project Governance
 
