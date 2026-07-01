@@ -63,6 +63,8 @@ $auditPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\AuditLogPage.e
 $auditPage = if (Test-Path -LiteralPath $auditPagePath) { Get-Content -LiteralPath $auditPagePath -Raw } else { "" }
 $historyPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\ConnectionHistoryPage.ets"
 $historyPage = if (Test-Path -LiteralPath $historyPagePath) { Get-Content -LiteralPath $historyPagePath -Raw } else { "" }
+$savedHostsPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\SavedHostsPage.ets"
+$savedHostsPage = if (Test-Path -LiteralPath $savedHostsPagePath) { Get-Content -LiteralPath $savedHostsPagePath -Raw } else { "" }
 $importExportPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\ConnectionImportExportPage.ets"
 $importExportPage = if (Test-Path -LiteralPath $importExportPagePath) { Get-Content -LiteralPath $importExportPagePath -Raw } else { "" }
 $importExportServicePath = Join-Path $projectRoot "entry\src\main\ets\common\services\ConnectionImportExportService.ets"
@@ -77,7 +79,7 @@ $aboutPagePath = Join-Path $projectRoot "entry\src\main\ets\pages\AboutPage.ets"
 $aboutPage = if (Test-Path -LiteralPath $aboutPagePath) { Get-Content -LiteralPath $aboutPagePath -Raw } else { "" }
 $forwardPage = Get-Content -LiteralPath (Join-Path $projectRoot "entry\src\main\ets\pages\PortForwardPage.ets") -Raw
 $fullscreenPageNames = @(
-  "Index", "ConnectionEditPage", "ConnectionGroupPage", "AuditLogPage", "ConnectionHistoryPage", "ConnectionImportExportPage", "TerminalPage",
+  "Index", "ConnectionEditPage", "ConnectionGroupPage", "SavedHostsPage", "AuditLogPage", "ConnectionHistoryPage", "ConnectionImportExportPage", "TerminalPage",
   "SftpPage", "PortForwardPage", "SettingsPage", "ToolboxPage", "TerminalSettingsPage", "AboutPage"
 )
 $fullscreenPagesHaveAvoidance = $true
@@ -196,6 +198,8 @@ $checks += @(
   [PSCustomObject]@{ Name = "connection-audit-filter"; Pass = $auditPage.Contains("AuditFilterOption") -and $auditPage.Contains("filteredLogs") -and $auditPage.Contains("selectedFilter") -and $auditPage.Contains("AUDIT_CONNECT_FAILURE") },
   [PSCustomObject]@{ Name = "connection-history-page-route"; Pass = (Test-Path -LiteralPath $historyPagePath) -and $mainPages.Contains('"pages/ConnectionHistoryPage"') -and $indexPage.Contains("pages/ConnectionHistoryPage") },
   [PSCustomObject]@{ Name = "connection-history-stats"; Pass = $historyPage.Contains("lastConnectedAt") -and $historyPage.Contains("connectionCount") -and $historyPage.Contains("lastErrorMessage") -and $historyPage.Contains("pages/TerminalPage") },
+  [PSCustomObject]@{ Name = "saved-hosts-page-route"; Pass = (Test-Path -LiteralPath $savedHostsPagePath) -and $mainPages.Contains('"pages/SavedHostsPage"') -and $indexPage.Contains("pages/SavedHostsPage") },
+  [PSCustomObject]@{ Name = "saved-hosts-management"; Pass = $savedHostsPage.Contains("struct SavedHostsPage") -and $savedHostsPage.Contains("ProfileRepository.listFiltered") -and $savedHostsPage.Contains("ConnectionEditPage") -and $savedHostsPage.Contains("TerminalPage") -and $savedHostsPage.Contains("AUDIT_BULK_ACTION") -and $savedHostsPage.Contains("profileRefreshToken") },
   [PSCustomObject]@{ Name = "connection-import-export-route"; Pass = (Test-Path -LiteralPath $importExportPagePath) -and $mainPages.Contains('"pages/ConnectionImportExportPage"') -and $indexPage.Contains("pages/ConnectionImportExportPage") },
   [PSCustomObject]@{ Name = "connection-import-export-service"; Pass = (Test-Path -LiteralPath $importExportServicePath) -and $importExportService.Contains("buildOpenSshConfig") -and $importExportService.Contains("parseOpenSshConfig") -and $importExportService.Contains("buildBackupJson") -and $importExportService.Contains("parseBackupJson") },
   [PSCustomObject]@{ Name = "connection-import-export-privacy"; Pass = $importExportService.Contains("no passwords") -and $importExportService.Contains("scrubProfile") -and $repository.Contains("importConnections") -and $repository.Contains("profileKeyExists") },
@@ -215,8 +219,9 @@ $checks += @(
   [PSCustomObject]@{ Name = "toolbox-network-details"; Pass = $toolboxPage.Contains("formatRoutes") -and $toolboxPage.Contains("formatAddressFamily") -and $toolboxPage.Contains("toolbox.routes") },
   [PSCustomObject]@{ Name = "toolbox-icmp-equivalent"; Pass = $toolboxPage.Contains("runIcmpEquivalentTest") -and $toolboxPage.Contains("toolbox.icmpEquivalent") -and $toolboxPage.Contains("getConnectionProperties") -and $toolboxPage.Contains("probeTcp") -and $i18n.Contains("toolbox.icmpEquivalentPath") -and $i18n.Contains("ICMP raw socket") },
   [PSCustomObject]@{ Name = "workbench-toolbox-entry"; Pass = $indexPage.Contains("openToolboxPage") -and $indexPage.Contains("workbench.toolbox") -and -not $indexPage.Contains("type: 'hosts'") },
-  [PSCustomObject]@{ Name = "workbench-inline-host-list"; Pass = $indexPage.Contains("WorkbenchHostList") -and $indexPage.Contains("visibleWorkbenchHosts") -and $indexPage.Contains("ProfileRepository.list().slice") },
-  [PSCustomObject]@{ Name = "workbench-profile-refresh"; Pass = $repository.Contains("notifyProfilesChanged") -and $repository.Contains("profileRefreshToken") -and $entryAbility.Contains("profileRefreshToken") -and $indexPage.Contains("onProfileRefreshTokenChanged") -and $indexPage.Contains("workbenchProfiles") },
+  [PSCustomObject]@{ Name = "workbench-host-options-only"; Pass = $indexPage.Contains("WorkbenchHostOptions") -and $indexPage.Contains("workbench.hostOptions") -and $indexPage.Contains("pages/SavedHostsPage") -and -not $indexPage.Contains("WorkbenchHostList") -and -not $indexPage.Contains("visibleWorkbenchHosts") },
+  [PSCustomObject]@{ Name = "connections-recent-history"; Pass = $indexPage.Contains("recentProfiles") -and $indexPage.Contains(".slice(0, 10)") -and $indexPage.Contains("connections.recentHistory") -and -not $indexPage.Contains("this.ConnectionFilterCard()") -and -not $indexPage.Contains("this.ProfileRow(profile, index)") },
+  [PSCustomObject]@{ Name = "workbench-profile-refresh"; Pass = $repository.Contains("notifyProfilesChanged") -and $repository.Contains("profileRefreshToken") -and $entryAbility.Contains("profileRefreshToken") -and $indexPage.Contains("onProfileRefreshTokenChanged") -and $savedHostsPage.Contains("onProfileRefreshTokenChanged") },
   [PSCustomObject]@{ Name = "theme-language-settings"; Pass = $settingsPage.Contains("AppSettingsRepository.setThemeMode") -and $settingsPage.Contains("AppSettingsRepository.setLanguage") -and $settingsPage.Contains("THEME_DARK") -and $settingsPage.Contains("LANG_EN") },
   [PSCustomObject]@{ Name = "theme-language-storage"; Pass = (Test-Path -LiteralPath $appSettingsPath) -and $appSettings.Contains("@ohos.data.preferences") -and $appSettings.Contains("APP_THEME_KEY") -and $appSettings.Contains("APP_LANGUAGE_KEY") -and $entryAbility.Contains("AppSettingsRepository.initialize") },
   [PSCustomObject]@{ Name = "language-system-follow"; Pass = $appSettings.Contains("@ohos.i18n") -and $appSettings.Contains("LANG_SYSTEM") -and $appSettings.Contains("getFirstPreferredLanguage") -and $appSettings.Contains("getPreferredLanguageList") -and $appSettings.Contains("resolveEffectiveLanguage") -and $i18n.Contains("resolveEffectiveLanguage(language)") -and $i18n.Contains("settings.languageSystemSub") -and $indexPage.Contains("LANG_SYSTEM") -and $indexPage.Contains("languageSummaryText") -and $settingsPage.Contains("LANG_SYSTEM") },

@@ -47,7 +47,8 @@ interface SortChipItem {
 @Component
 struct Index {
   @State profiles: ConnectionProfile[] = [];
-  @State workbenchProfiles: ConnectionProfile[] = [];
+  @State recentProfiles: ConnectionProfile[] = [];
+  @State profileCount: number = 0;
   @State nativeVersion: string = '';
   @State activeTab: number = 0;
   @State searchKeyword: string = '';
@@ -113,8 +114,17 @@ struct Index {
 
   reload(): void {
     const groups: ConnectionGroup[] = ProfileRepository.listGroups();
+    const allProfiles: ConnectionProfile[] = ProfileRepository.list();
     this.groups = groups;
-    this.workbenchProfiles = ProfileRepository.list().slice(0, 4);
+    this.profileCount = allProfiles.length;
+    this.recentProfiles = allProfiles
+      .filter((profile: ConnectionProfile) => this.recentActivityAt(profile) > 0)
+      .sort((left: ConnectionProfile, right: ConnectionProfile) => {
+        return this.recentActivityAt(right) - this.recentActivityAt(left) ||
+          right.connectionCount - left.connectionCount ||
+          left.name.localeCompare(right.name);
+      })
+      .slice(0, 10);
     if (this.selectedGroupId.length > 0 &&
       groups.findIndex((item: ConnectionGroup) => item.id === this.selectedGroupId) < 0) {
       this.selectedGroupId = '';
@@ -216,8 +226,8 @@ struct Index {
     router.pushUrl({ url: 'pages/ToolboxPage' });
   }
 
-  private visibleWorkbenchHosts(): ConnectionProfile[] {
-    return this.workbenchProfiles;
+  private openSavedHostsPage(): void {
+    router.pushUrl({ url: 'pages/SavedHostsPage' });
   }
 
   private toast(message: string): void {
@@ -413,9 +423,37 @@ struct Index {
     return this.t('workbench.neverConnected');
   }
 
+  private recentActivityAt(profile: ConnectionProfile): number {
+    if (profile.lastConnectedAt > 0) {
+      return profile.lastConnectedAt;
+    }
+    if (profile.lastErrorMessage.length > 0) {
+      return profile.modifiedAt;
+    }
+    return 0;
+  }
+
+  private formatHistoryTime(profile: ConnectionProfile): string {
+    const timestamp: number = this.recentActivityAt(profile);
+    if (timestamp <= 0) {
+      return this.t('history.noSuccess');
+    }
+    const date: Date = new Date(timestamp);
+    return date.getFullYear().toString() + '-' + this.pad(date.getMonth() + 1) + '-' + this.pad(date.getDate()) +
+      ' ' + this.pad(date.getHours()) + ':' + this.pad(date.getMinutes());
+  }
+
+  private pad(value: number): string {
+    return value < 10 ? '0' + value.toString() : value.toString();
+  }
+
   private handleAction(item: WorkbenchAction): void {
     if (item.type === 'sftp') {
       router.pushUrl({ url: 'pages/SftpPage' });
+      return;
+    }
+    if (item.type === 'savedHosts') {
+      this.openSavedHostsPage();
       return;
     }
     if (item.type === 'groups') {
@@ -1051,72 +1089,15 @@ struct Index {
   }
 
   @Builder
-  WorkbenchHostRow(profile: ConnectionProfile, index: number, total: number) {
-    Column() {
-      Row() {
-        Row() {
-          Image($rawfile('settings_server.svg'))
-            .width(21)
-            .height(21)
-            .colorFilter(createIconColorFilter(this.accentColor))
-        }
-        .width(38)
-        .height(38)
-        .justifyContent(FlexAlign.Center)
-        .backgroundColor(this.iconSoftBg())
-        .borderRadius(12)
-        .margin({ right: 10 })
-
-        Column({ space: 3 }) {
-          Text(profile.name)
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.textPrimary())
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
-            .fontSize(12)
-            .fontColor(this.textSecond())
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.formatConnectionMeta(profile))
-            .fontSize(11)
-            .fontColor(this.textMuted())
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-
-        Text(this.t('common.connect'))
-          .fontSize(13)
-          .fontColor(this.accentColor)
-          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .backgroundColor(this.iconSoftBg())
-          .borderRadius(10)
-          .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
-      }
-      .width('100%')
-      .height(76)
-      .padding({ left: 12, right: 12 })
-
-      if (index < total - 1) {
-        Divider().color(this.lineColor()).margin({ left: 60 })
-      }
-    }
-    .width('100%')
-  }
-
-  @Builder
-  WorkbenchHostList() {
+  WorkbenchHostOptions() {
     Column() {
       Row() {
         Column({ space: 2 }) {
-          Text(this.t('workbench.hosts'))
+          Text(this.t('workbench.hostOptions'))
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor(this.textPrimary())
-          Text(this.t('workbench.hosts.subtitle'))
+          Text(this.t('workbench.hostOptions.subtitle'))
             .fontSize(12)
             .fontColor(this.textSecond())
         }
@@ -1134,26 +1115,15 @@ struct Index {
       .width('100%')
       .padding({ left: 14, right: 14, top: 14, bottom: 6 })
 
-      if (this.visibleWorkbenchHosts().length === 0) {
-        Row() {
-          Text(this.t('workbench.noHosts'))
-            .fontSize(14)
-            .fontColor(this.textSecond())
-        }
-        .width('100%')
-        .height(62)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        ForEach(this.visibleWorkbenchHosts(), (profile: ConnectionProfile, index: number) => {
-          this.WorkbenchHostRow(profile, index, this.visibleWorkbenchHosts().length)
-        }, (profile: ConnectionProfile) => profile.id)
-      }
-
-      Text(this.t('workbench.hosts.tip'))
-        .fontSize(11)
-        .fontColor(this.textMuted())
-        .width('100%')
-        .padding({ left: 14, right: 14, bottom: 12 })
+      this.CompactOptionRow($rawfile('ft_new_folder.svg'), this.t('connections.sshHost'),
+        this.t('workbench.addHostSub'), '#0A84FF',
+        () => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+      this.CompactOptionRow($rawfile('settings_server.svg'), this.t('connections.savedHosts'),
+        this.profileCount.toString() + this.t('workbench.savedHostsCountSuffix'), '#2EA8E5',
+        () => this.openSavedHostsPage())
+      this.CompactOptionRow($rawfile('settings_timer.svg'), this.t('workbench.history'),
+        this.recentProfiles.length.toString() + this.t('workbench.recentHistoryCountSuffix'), '#22C55E',
+        () => router.pushUrl({ url: 'pages/ConnectionHistoryPage' }), false)
     }
     .width('92%')
     .backgroundColor(this.cardBg())
@@ -1168,7 +1138,7 @@ struct Index {
     Scroll() {
       Column() {
         Blank().height(this.contentTopInset())
-        this.WorkbenchHostList()
+        this.WorkbenchHostOptions()
         this.SectionLabel(this.t('workbench.actions'))
         Column() {
           ForEach(this.actions, (item: WorkbenchAction, index: number) => {
@@ -1190,6 +1160,64 @@ struct Index {
   }
 
   @Builder
+  RecentHistoryRow(profile: ConnectionProfile, index: number) {
+    Column() {
+      Row() {
+        Row() {
+          Image($rawfile('settings_timer.svg'))
+            .width(21)
+            .height(21)
+            .colorFilter(createIconColorFilter(profile.connectionCount > 0 ? this.accentColor : '#DC2626'))
+        }
+        .width(38)
+        .height(38)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor(this.iconSoftBg())
+        .borderRadius(12)
+        .margin({ right: 10 })
+
+        Column({ space: 3 }) {
+          Text(profile.name)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.textPrimary())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(profile.username + '@' + profile.host + ':' + profile.port.toString())
+            .fontSize(12)
+            .fontColor(this.textSecond())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(profile.lastErrorMessage.length > 0 ? this.t('history.lastFailure') + profile.lastErrorMessage :
+            this.formatHistoryTime(profile))
+            .fontSize(11)
+            .fontColor(profile.lastErrorMessage.length > 0 ? '#DC2626' : this.textMuted())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text(profile.connectionCount.toString() + this.t('common.times'))
+          .fontSize(12)
+          .fontColor(this.textSecond())
+          .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+          .backgroundColor(this.chipBg())
+          .borderRadius(9)
+      }
+      .width('100%')
+      .height(76)
+      .padding({ left: 12, right: 12 })
+      .onClick(() => router.pushUrl({ url: 'pages/TerminalPage', params: { profileId: profile.id } }))
+
+      if (index < this.recentProfiles.length - 1) {
+        Divider().color(this.lineColor()).margin({ left: 60 })
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
   ConnectionPage() {
     Scroll() {
       Column() {
@@ -1208,9 +1236,12 @@ struct Index {
           .margin({ top: 5, bottom: 10 })
 
         Column() {
-          this.CompactOptionRow($rawfile('settings_server.svg'), this.t('connections.sshHost'),
+          this.CompactOptionRow($rawfile('ft_new_folder.svg'), this.t('connections.sshHost'),
             this.t('connections.sshHostSub'), '#0A84FF',
             () => router.pushUrl({ url: 'pages/ConnectionEditPage' }))
+          this.CompactOptionRow($rawfile('settings_server.svg'), this.t('connections.savedHosts'),
+            this.t('connections.savedHostsSub'), '#2EA8E5',
+            () => this.openSavedHostsPage())
           this.CompactOptionRow($rawfile('settings_folder.svg'), this.t('workbench.groups'),
             this.t('connections.groupsSub'), '#2EA8E5',
             () => this.openGroupPage())
@@ -1231,12 +1262,15 @@ struct Index {
         .borderRadius(18)
         .clip(true)
 
-        this.SectionLabel(this.t('connections.savedHosts'))
-        this.ConnectionFilterCard()
-        this.BulkActionBar()
-        if (this.profiles.length === 0) {
+        this.SectionLabel(this.t('connections.recentHistory'))
+        Text(this.t('connections.recentHistorySub'))
+          .fontSize(12)
+          .fontColor(this.textSecond())
+          .width('92%')
+          .margin({ bottom: 8 })
+        if (this.recentProfiles.length === 0) {
           Row() {
-            Text(this.t('connections.noMatch'))
+            Text(this.t('connections.recentEmpty'))
               .fontSize(14)
               .fontColor(this.textSecond())
           }
@@ -1248,8 +1282,8 @@ struct Index {
           .margin({ top: 10 })
         } else {
           Column() {
-            ForEach(this.profiles, (profile: ConnectionProfile, index: number) => {
-              this.ProfileRow(profile, index)
+            ForEach(this.recentProfiles, (profile: ConnectionProfile, index: number) => {
+              this.RecentHistoryRow(profile, index)
             }, (profile: ConnectionProfile) => profile.id)
           }
           .width('92%')
@@ -1258,6 +1292,15 @@ struct Index {
           .clip(true)
           .margin({ top: 10 })
         }
+
+        Button(this.t('connections.viewAllHistory'))
+          .height(40)
+          .fontSize(14)
+          .fontColor(this.accentColor)
+          .backgroundColor(this.iconSoftBg())
+          .borderRadius(12)
+          .margin({ top: 12 })
+          .onClick(() => router.pushUrl({ url: 'pages/ConnectionHistoryPage' }))
 
         Button(this.t('connections.forward'))
           .height(40)

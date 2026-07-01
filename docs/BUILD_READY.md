@@ -123,8 +123,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 首页工作台“访问日志”入口能打开 `AuditLogPage`。
 - 首页工作台和连接页“导入导出”入口能打开 `ConnectionImportExportPage`。
 - 首页工作台右上角入口能打开 `ToolboxPage`，不再打开设置页。
-- 首页工作台主机列表直接显示已保存主机信息和连接按钮，不再通过动作切换到连接 Tab。
-- 新增/编辑/删除主机或真实连接统计变更后，工作台主机列表通过资料刷新令牌直接刷新，不需要手动切换 Tab。
+- 首页工作台不显示已保存主机的名称、地址、用户、端口或状态，只提供新增主机、已保存主机和连接历史等入口。
+- 已保存主机完整列表进入 `SavedHostsPage` 独立页面，新增主机仍进入原 `ConnectionEditPage`；资料变更后通过刷新令牌更新入口计数和独立页列表。
+- 连接 Tab 不再显示完整保存列表，改为最近 10 条连接历史摘要，并提供完整历史入口。
 - “设置 / 工具 / 工具箱”入口能打开 `ToolboxPage`。
 - 第四个底部 Tab 为“设置”，且主题/语言、文件、缓存、终端、工具和关于分组直接展开；浅色/深色、中文/English 和系统语言跟随切换能即时刷新，并在重启后保持偏好。
 - 连接页“全部分组 / 分组名 / 管理分组”芯片能筛选或跳转。
@@ -161,6 +162,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 2026-07-01 04:55 阶段基线推进到 Real HAP SHA256 `D23BEF0226A9B8EE4FDE519610C605C7ED61F16769245061A4B27193D1B480ED`。本轮移除连接页 logo 下方 SSH/二进制横幅，新增工具箱 ICMP 等价验收，使用普通应用可用的默认网络、DNS 解析和 TCP connect 作为应用层连通性证据；同时完成用户提供局域网测试主机的 x86_64 hdc SSH 验证：HostKey 确认、密码认证、PTY 打开、`whoami` 输出和连接次数回写均通过。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 124/124；覆盖安装冒烟通过 9/9，HAP 大小 `13,109,588` bytes，构建时间 `2026-07-01 03:55:03 +08:00`。设备证据包括 `screenshot_20260701_035805_connection_no_hero.jpeg`、`screenshot_20260701_044250_ssh_after_hostkey.jpeg`、`screenshot_20260701_044430_ssh_whoami.jpeg`、`screenshot_20260701_045050_app_home_after_forcestop.jpeg` 和 `screenshot_20260701_045540_toolbox_icmp_equivalent_result.jpeg`。当前 hdc 目标报告为 `x86_64` / `emulator`，不能替代 arm64 真机验收。
 
 2026-07-01 05:05 最新本地基线已重建为 Real HAP SHA256 `C402EFED7D6A137E8190A613DC0821E621F8464D20C7A59D0C117980E8FF2FC4`。本轮针对工作台新增/编辑/删除或连接统计变更后必须切换 Tab 才刷新的问题，新增 `profileRefreshToken` 写入通知和首页 `@StorageLink` / `@Watch` reload，并把刷新令牌改为单调递增以覆盖快速连续写入；连接页去横幅与工具箱 ICMP 等价验收同步保留。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 125/125；覆盖安装冒烟通过 9/9，HAP 大小 `13,113,342` bytes，构建时间 `2026-07-01 05:03:31 +08:00`。新增层级证据为 `layout_20260701_050500_home_after_refresh_token_monotonic.json` 和 `layout_20260701_050500_connection_no_hero_after_refresh_token_monotonic.json`；同日 SSH 实测仍以 x86_64 hdc 目标证据为准，不能替代 arm64 真机验收。
+
+2026-07-01 08:49 最新本地基线已推进到 Real HAP SHA256 `D2648447E8D83A8192CF5EAC3B59AEA4FAB695710BECD4E6D7DA0F80A728817A`。本轮将工作台改为只显示主机管理入口，新增 `SavedHostsPage` 独立保存主机管理页，并把连接 Tab 的保存列表替换为最近 10 条历史摘要。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 128/128；覆盖安装冒烟通过 9/9，HAP 大小 `13,219,561` bytes，构建时间 `2026-07-01 08:48:19 +08:00`。设备层级证据为 `layout_20260701_083800_home_host_options.json`、`layout_20260701_083800_connection_recent_history.json` 和 `layout_20260701_083900_saved_hosts_page.json`；当前 hdc 目标仍为 x86_64/emulator 范畴，不能替代 arm64 真机验收。
 
 ## 当前不能判定完成
 

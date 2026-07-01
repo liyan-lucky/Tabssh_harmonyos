@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/ConnectionEditPage",
     "pages/ConnectionGroupPage",
+    "pages/SavedHostsPage",
     "pages/AuditLogPage",
     "pages/ConnectionHistoryPage",
     "pages/ConnectionImportExportPage",
