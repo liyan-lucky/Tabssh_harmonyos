@@ -1039,6 +1039,9 @@ struct ToolboxPage {
         lines.push('DNS: ' + this.formatNetAddresses(properties.dnses));
         lines.push(this.t('toolbox.gateway') + this.formatGateways(properties.routes));
         lines.push(this.t('toolbox.routes') + this.formatRoutes(properties.routes));
+        await this.appendAllNetworkDetails(lines, defaultNet.netId);
+      } else {
+        await this.appendAllNetworkDetails(lines, 0);
       }
       lines.push(this.t('toolbox.ipNoteResolved'));
       this.toolOutput = lines.join('\n');
@@ -1047,6 +1050,46 @@ struct ToolboxPage {
     } finally {
       this.networkInFlight = false;
     }
+  }
+
+  private async appendAllNetworkDetails(lines: string[], defaultNetId: number): Promise<void> {
+    const nets: connection.NetHandle[] = await connection.getAllNets();
+    lines.push(this.t('toolbox.allNetworks') + nets.length.toString());
+    for (let i = 0; i < nets.length && i < 8; i++) {
+      const marker: string = nets[i].netId === defaultNetId ? ' [' + this.t('toolbox.defaultMarker') + ']' : '';
+      try {
+        const properties: connection.ConnectionProperties = await connection.getConnectionProperties(nets[i]);
+        const capabilities: connection.NetCapabilities = await connection.getNetCapabilities(nets[i]);
+        const networkCaps: connection.NetCap[] = capabilities.networkCap === undefined ? [] : capabilities.networkCap;
+        lines.push('#' + (i + 1).toString() + ' ' + this.t('toolbox.netId') + nets[i].netId.toString() + marker);
+        lines.push('  ' + this.t('toolbox.interfaceName') +
+          (properties.interfaceName.length > 0 ? properties.interfaceName : this.t('toolbox.none')) +
+          ' / MTU: ' + properties.mtu.toString());
+        lines.push('  ' + this.t('toolbox.bearers') + this.formatBearerTypes(capabilities.bearerTypes) +
+          ' / ' + this.t('toolbox.capabilities') + this.formatNetworkCaps(networkCaps));
+        if (capabilities.linkUpBandwidthKbps !== undefined || capabilities.linkDownBandwidthKbps !== undefined) {
+          lines.push('  ' + this.t('toolbox.bandwidth') +
+            (capabilities.linkUpBandwidthKbps === undefined ? this.t('toolbox.none') :
+              capabilities.linkUpBandwidthKbps.toString() + ' kbps') + ' / ' +
+            (capabilities.linkDownBandwidthKbps === undefined ? this.t('toolbox.none') :
+              capabilities.linkDownBandwidthKbps.toString() + ' kbps'));
+        }
+        lines.push('  ' + this.t('toolbox.linkAddresses') + this.formatLinkAddresses(properties.linkAddresses));
+        lines.push('  DNS: ' + this.formatNetAddresses(properties.dnses));
+        lines.push('  ' + this.t('toolbox.gateway') + this.formatGateways(properties.routes));
+        const validity: string = this.formatLinkValidity(properties);
+        if (validity.length > 0) {
+          lines.push('  ' + this.t('toolbox.linkValidity') + validity);
+        }
+      } catch (error) {
+        lines.push('#' + (i + 1).toString() + ' ' + this.t('toolbox.netId') + nets[i].netId.toString() +
+          marker + ' ' + this.t('toolbox.convertError') + this.errorMessage(error as Error));
+      }
+    }
+    if (nets.length > 8) {
+      lines.push('... +' + (nets.length - 8).toString());
+    }
+    lines.push(this.t('toolbox.multiNetNote'));
   }
 
   private formatNetAddresses(addresses: connection.NetAddress[]): string {
@@ -1087,6 +1130,83 @@ struct ToolboxPage {
     return values.join(', ');
   }
 
+  private formatLinkValidity(properties: connection.ConnectionProperties): string {
+    const values: string[] = [];
+    if (properties.isIPv4LinkValid !== undefined) {
+      values.push('IPv4=' + (properties.isIPv4LinkValid ? this.t('common.enabled') : this.t('common.disabled')));
+    }
+    if (properties.isIPv6LinkValid !== undefined) {
+      values.push('IPv6=' + (properties.isIPv6LinkValid ? this.t('common.enabled') : this.t('common.disabled')));
+    }
+    return values.join(', ');
+  }
+
+  private bearerTypeName(type: connection.NetBearType): string {
+    if (type === connection.NetBearType.BEARER_CELLULAR) {
+      return 'cellular';
+    }
+    if (type === connection.NetBearType.BEARER_WIFI) {
+      return 'wifi';
+    }
+    if (type === connection.NetBearType.BEARER_BLUETOOTH) {
+      return 'bluetooth';
+    }
+    if (type === connection.NetBearType.BEARER_ETHERNET) {
+      return 'ethernet';
+    }
+    if (type === connection.NetBearType.BEARER_VPN) {
+      return 'vpn';
+    }
+    return 'bearer unknown';
+  }
+
+  private formatBearerTypes(types: connection.NetBearType[]): string {
+    if (types.length === 0) {
+      return this.t('toolbox.none');
+    }
+    const values: string[] = [];
+    for (let i = 0; i < types.length; i++) {
+      values.push(this.bearerTypeName(types[i]));
+    }
+    return values.join(', ');
+  }
+
+  private netCapName(cap: connection.NetCap): string {
+    if (cap === connection.NetCap.NET_CAPABILITY_NOT_METERED) {
+      return 'not-metered';
+    }
+    if (cap === connection.NetCap.NET_CAPABILITY_INTERNET) {
+      return 'internet';
+    }
+    if (cap === connection.NetCap.NET_CAPABILITY_NOT_VPN) {
+      return 'not-vpn';
+    }
+    if (cap === connection.NetCap.NET_CAPABILITY_VALIDATED) {
+      return 'validated';
+    }
+    if (cap === connection.NetCap.NET_CAPABILITY_PORTAL) {
+      return 'portal';
+    }
+    if (cap === connection.NetCap.NET_CAPABILITY_CHECKING_CONNECTIVITY) {
+      return 'checking';
+    }
+    if (cap === connection.NetCap.NET_CAPABILITY_MMS) {
+      return 'mms';
+    }
+    return 'cap unknown';
+  }
+
+  private formatNetworkCaps(caps: connection.NetCap[]): string {
+    if (caps.length === 0) {
+      return this.t('toolbox.none');
+    }
+    const values: string[] = [];
+    for (let i = 0; i < caps.length; i++) {
+      values.push(this.netCapName(caps[i]));
+    }
+    return values.join(', ');
+  }
+
   private formatGateways(routes: connection.RouteInfo[]): string {
     const values: string[] = [];
     for (let i = 0; i < routes.length; i++) {
@@ -1105,7 +1225,10 @@ struct ToolboxPage {
     for (let i = 0; i < routes.length && values.length < 8; i++) {
       const gateway: string = routes[i].hasGateway && routes[i].gateway.address.length > 0 ?
         routes[i].gateway.address : this.t('toolbox.none');
-      values.push('route' + (i + 1).toString() + ' gateway=' + gateway);
+      const destination: string = routes[i].destination.address.address + '/' + routes[i].destination.prefixLength.toString();
+      const networkInterface: string = routes[i].interface.length > 0 ? routes[i].interface : this.t('toolbox.none');
+      values.push('route' + (i + 1).toString() + ' ' + destination + ' gateway=' + gateway +
+        ' dev=' + networkInterface + (routes[i].isDefaultRoute ? ' default' : ''));
     }
     return values.join('; ');
   }

@@ -167,6 +167,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 
 2026-07-01 09:26 最新本地基线已推进到 Real HAP SHA256 `E75DD509F72DE27B2D00778F43FD676EAA58EA8E4C7E4A44890E645AB69A1892`。本轮为二维码工具补同页预览和纯文本 SVG 保存源，保存入口使用 HarmonyOS `DocumentViewPicker.save`，不引入第三方二维码或图片编码库。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 129/129；覆盖安装冒烟通过 9/9，HAP 大小 `13,247,729` bytes，构建时间 `2026-07-01 09:21:16 +08:00`。设备层级证据为 `layout_20260701_0926_toolbox_qr_panel.json` 和 `layout_20260701_0926_toolbox_qr_save_picker.json`；当前只证明预览、系统保存选择器和预填文件名可用，真实目标文件写入/回读、PNG/相册保存和扫码兼容性仍待补。
 
+2026-07-01 09:43 最新本地基线已推进到 Real HAP SHA256 `CF8EEFA582E6FE4925562D275568144DB3760A0A253A617D033C88FD768EB15F`。本轮为 IP 详情补全部网络/多网卡枚举、网络能力和更完整路由摘要，使用纯 HarmonyOS `getAllNets`、`getConnectionProperties` 和 `getNetCapabilities`。`scripts/run_local_checks.ps1 -WithRealCore` 通过 9/9，全局审计 130/130；覆盖安装冒烟通过 9/9，HAP 大小 `13,263,384` bytes，构建时间 `2026-07-01 09:41:13 +08:00`。设备层级证据 `layout_20260701_0943_toolbox_ip_all_networks.json` 显示 `全部网络：2`、默认 `eth0`、`wlan0`、承载/能力、链路地址、DNS、网关和链路有效性。
+
 ## 当前不能判定完成
 
 - RDB 完整跨重启点击证据和 schema migration；基础新增分组与分组变更摘要跨重启已通过。
@@ -175,7 +177,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_mock_hap.ps1
 - 访问日志真实连接事件写入、清空、导出文件写入/回读和隐私字段审计证据；分组变更摘要基础跨重启、导出选择器唤起和筛选空状态已通过。
 - 连接历史真实成功/失败数据、点击行进入终端和跨重启统计回显。
 - 连接导入导出真实文件写入/回读、真实 OpenSSH/JSON 样本导入落库、跨重启回显、加密 ZIP、QR 配对和冲突合并。
-- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、ICMP 等价验收、Nginx 摘要/同输入变量展开/include 检出和 QR Version 2-L 矩阵、二维码预览和 SVG 保存选择器已有 Real HAP 输出；二维码 SVG 真实目标写入/回读、PNG/相册保存、扫码兼容性和进一步美化、IP 详情路由/地址族设备点击、多网卡枚举和外部 Nginx include 文件导入/展开仍未完成。
+- 工具箱剩余网络类能力：网络拓扑、默认网络信息、端口扫描、公网 IP、IP 详情全部网络/多网卡枚举、受控子网发现、HTTP 下载样本测速、HTTP POST 上传测速、单项 TCP 连通性、ICMP 等价验收、Nginx 摘要/同输入变量展开/include 检出、QR Version 2-L 矩阵、二维码预览和 SVG 保存选择器已有 Real HAP 输出；二维码 SVG 真实目标写入/回读、PNG/相册保存、扫码兼容性和进一步美化，以及外部 Nginx include 文件导入/展开仍未完成。
 - 主题/多语言完整矩阵；当前已覆盖首页主壳、工作台、设置 Tab、设置页、工具箱页、关于、终端设置、连接历史、访问日志、连接分组、连接导入导出、连接编辑、终端、SFTP 和端口转发页，系统语言跟随已完成设置 Tab 点击和强停重启回显；仍需多页面切换即时刷新、无障碍/高对比和部分动态文案验收。
 - 全屏避让的横竖屏、手势导航、挖孔、软键盘和终端长会话矩阵；单台 x86_64 模拟器多页抽样已通过。
 - 非空分组迁移和拖拽排序。
