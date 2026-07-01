@@ -70,6 +70,9 @@ struct ToolboxPage {
   @State qrRows: QrVisualRow[] = [];
   @State qrSvgText: string = '';
   @State qrExporting: boolean = false;
+  @State nginxIncludeText: string = '';
+  @State nginxIncludeSummary: string = '';
+  @State nginxImporting: boolean = false;
   @State unitMode: string = 'm_ft';
   @State networkInFlight: boolean = false;
   @StorageProp('avoidStatusBarHeight') avoidStatusBarHeight: number = 0;
@@ -216,6 +219,8 @@ struct ToolboxPage {
     this.toolOutput = '';
     this.qrRows = [];
     this.qrSvgText = '';
+    this.nginxIncludeText = '';
+    this.nginxIncludeSummary = '';
     if (item.titleKey === 'toolbox.json') {
       this.formatJson(true);
     } else if (item.titleKey === 'toolbox.encode') {
@@ -253,6 +258,8 @@ struct ToolboxPage {
     this.toolOutput = '';
     this.qrRows = [];
     this.qrSvgText = '';
+    this.nginxIncludeText = '';
+    this.nginxIncludeSummary = '';
   }
 
   private errorMessage(error: Error): string {
@@ -1276,8 +1283,57 @@ struct ToolboxPage {
     return (index >= 0 ? line.substring(0, index) : line).trim();
   }
 
+  private countTextLines(text: string): number {
+    if (text.length === 0) {
+      return 0;
+    }
+    return text.split(/\r\n|\r|\n/).length;
+  }
+
+  private nginxAnalysisInput(): string {
+    if (this.nginxIncludeText.length === 0) {
+      return this.toolInput;
+    }
+    return this.toolInput + '\n\n# OpenTabSsh external include expansion\n' + this.nginxIncludeText;
+  }
+
+  private clearNginxInclude(): void {
+    this.nginxIncludeText = '';
+    this.nginxIncludeSummary = '';
+    this.analyzeNginxConfig();
+  }
+
+  private async importNginxIncludeFile(): Promise<void> {
+    if (this.nginxImporting) {
+      return;
+    }
+    this.nginxImporting = true;
+    try {
+      const text: string = await this.readSelectedText('nginx-include');
+      if (text.length === 0) {
+        promptAction.showToast({ message: this.t('toolbox.nginxIncludeCanceled'), duration: 1600 });
+        return;
+      }
+      let includeText: string = text;
+      let suffix: string = '';
+      if (includeText.length > 65536) {
+        includeText = includeText.substring(0, 65536);
+        suffix = ' / ' + this.t('toolbox.nginxIncludeTruncated');
+      }
+      this.nginxIncludeText = includeText;
+      this.nginxIncludeSummary = this.countTextLines(includeText).toString() + ' lines / ' +
+        includeText.length.toString() + ' chars' + suffix;
+      this.analyzeNginxConfig();
+      promptAction.showToast({ message: this.t('toolbox.nginxIncludeImported'), duration: 1600 });
+    } catch (error) {
+      this.toolOutput = this.t('toolbox.nginxIncludeFailed') + this.errorMessage(error as Error);
+    } finally {
+      this.nginxImporting = false;
+    }
+  }
+
   private analyzeNginxConfig(): void {
-    const normalized: string = this.toolInput.replace(/\{/g, '{\n').replace(/;/g, ';\n');
+    const normalized: string = this.nginxAnalysisInput().replace(/\{/g, '{\n').replace(/;/g, ';\n');
     const lines: string[] = normalized.split(/\r\n|\r|\n/);
     let serverCount: number = 0;
     const listens: string[] = [];
@@ -1339,6 +1395,8 @@ struct ToolboxPage {
         proxies.push(rawProxy === expandedProxy ? rawProxy : rawProxy + ' -> ' + expandedProxy);
       }
     }
+    const includeExpanded: string = this.nginxIncludeText.length > 0 ?
+      '\n' + this.t('toolbox.nginxIncludeExpanded') + this.nginxIncludeSummary : '';
     this.toolOutput = 'server blocks: ' + serverCount.toString() +
       '\nlisten: ' + this.joinOrNone(listens) +
       '\nserver_name: ' + this.joinOrNone(serverNames) +
@@ -1348,6 +1406,7 @@ struct ToolboxPage {
       '\nproxy_pass: ' + this.joinOrNone(proxies) +
       '\ninclude: ' + this.joinOrNone(includes) +
       '\n' + this.t('toolbox.nginxVariables') + this.formatNginxVariables(variableNames, variableValues) +
+      includeExpanded +
       '\n' + this.t('toolbox.nginxNote');
   }
 
@@ -1529,6 +1588,32 @@ struct ToolboxPage {
     } finally {
       if (fs.accessSync(verifyPath)) {
         fs.unlinkSync(verifyPath);
+      }
+    }
+  }
+
+  private async readSelectedText(label: string): Promise<string> {
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+    const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
+    options.maxSelectNumber = 1;
+    const selectedUris: Array<string> = await documentPicker.select(options);
+    if (selectedUris.length === 0) {
+      return '';
+    }
+    const cachePath: string = context.cacheDir + '/opentabssh-toolbox-' + label.replace(/\s+/g, '-') + '-' +
+      new Date().getTime().toString() + '.txt';
+    const source: fs.File = fs.openSync(selectedUris[0], fs.OpenMode.READ_ONLY);
+    try {
+      await fs.copyFile(source.fd, cachePath);
+    } finally {
+      fs.closeSync(source);
+    }
+    try {
+      return fs.readTextSync(cachePath);
+    } finally {
+      if (fs.accessSync(cachePath)) {
+        fs.unlinkSync(cachePath);
       }
     }
   }
@@ -2101,6 +2186,8 @@ struct ToolboxPage {
               this.ActionButton(this.t('toolbox.uploadTest'), this.networkInFlight, () => this.runUploadTest())
             } else if (this.activeToolKey === 'toolbox.nginx') {
               this.ActionButton(this.t('toolbox.analyze'), false, () => this.analyzeNginxConfig())
+              this.ActionButton(this.t('toolbox.nginxImportInclude'), this.nginxImporting, () => this.importNginxIncludeFile())
+              this.ActionButton(this.t('toolbox.nginxClearInclude'), this.nginxIncludeText.length > 0, () => this.clearNginxInclude())
             } else if (this.activeToolKey === 'toolbox.ping') {
               this.ActionButton(this.t('toolbox.tcpProbe'), this.networkInFlight, () => this.runConnectivityTest())
               this.ActionButton(this.t('toolbox.icmpEquivalent'), this.networkInFlight, () => this.runIcmpEquivalentTest())
